@@ -11,7 +11,7 @@ using namespace std;
 int main() {
 	string image_path = "C:/Users/Carlo/Downloads/robot.png";
 
-	//greyscale for now
+	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
 	short block_size = 8;
 
@@ -28,30 +28,33 @@ int main() {
 
 	imshow("Image", image_pad);
 
-	//cropped image block location
-	Rect crop;
-	Mat block;
+	//openCV implementation of Gradient Calculation
+
+	Mat x_grad = Mat(img_size, CV_32FC1);
+	Mat y_grad = Mat(img_size, CV_32FC1);
+
+	Sobel(image, x_grad, CV_32FC1, 0, 1, 1);
+	Sobel(image, y_grad, CV_32FC1, 1, 0, 1);
+
+	Mat mag, dir;
+	cartToPolar(x_grad, y_grad, mag, dir, true);
+
+	//display images
+	imshow("X", x_grad);
+	imshow("Y", y_grad);
+	imshow("Magnitude", mag);
 
 	int i, j;
-
-	Mat x_grad = Mat(img_size, CV_8SC1);
-	Mat y_grad = Mat(img_size, CV_8SC1);
-
 
 	//loop through each block in the matrix (as per Dalal & Triggs' algorithm)
 	for (i = 0; i < image_pad.rows; i += block_size) {
 		for (j = 0; j < image_pad.cols; j += block_size) {
-			//crop image to block
-			block = image_pad(Rect(j, i, block_size, block_size));
 
-			//todo: perform gradient calculation and 
-			//store in x_grad and y_grad
+			//todo: binning of gradients to angles
+
 
 		}
 	}
-
-	//todo: binning of gradients to angles
-
 
 
 	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
@@ -70,4 +73,6 @@ int main() {
 	return 0;
 }
 
+//----------Useful References -------------------
+//https://learnopencv.com/histogram-of-oriented-gradients/
 //https://docs.opencv.org/4.x/d6/d6d/tutorial_mat_the_basic_image_container.html
