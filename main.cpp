@@ -49,11 +49,16 @@ int main() {
 	const int nBin_rows = (image_pad.rows / 8) * (image_pad.cols / 8);
 	
 	// Create 9x1 bins for each cell 
-	double **HOGBin = new double*[nBin_rows];
+	double ***HOGBin = new double**[nBin_rows];
 	for(int i = 0; i < nBin_rows; ++i){
-		HOGBin[i] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+		HOGBin[i] = new double*[nBin_rows];
 	}
 
+	for(int i = 0; i < nBin_rows; ++i){
+		for(int j = 0; j < nBin_rows; ++j){
+			HOGBin[i][j] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+		}
+	}
 
 	/*
 		Initialize the Bins
@@ -90,12 +95,14 @@ int main() {
 
 	// Free memory
 	for (int i = 0; i < nBin_rows; ++i){
+		for(int j = 0; j < nBin_rows; ++j){
+			delete[] HOGBin[i][j];
+		}
 		delete[] HOGBin[i];
 	}
 	delete[] HOGBin;
 
 	waitKey(0);
-	cout << "EOP";
 	return 0;
 }
 
