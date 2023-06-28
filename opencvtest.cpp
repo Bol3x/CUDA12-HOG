@@ -33,16 +33,21 @@ int main() {
 	Mat x_grad = Mat(img_size, CV_32FC1);
 	Mat y_grad = Mat(img_size, CV_32FC1);
 
-	Sobel(image, x_grad, CV_32FC1, 0, 1, 1);
-	Sobel(image, y_grad, CV_32FC1, 1, 0, 1);
+	Sobel(image_pad, x_grad, CV_32FC1, 0, 1, 1);
+	Sobel(image_pad, y_grad, CV_32FC1, 1, 0, 1);
+	
+	Mat x_grad_abs = cv::abs(x_grad);
+	Mat y_grad_abs = cv::abs(y_grad);
 
 	Mat mag, dir;
-	cartToPolar(x_grad, y_grad, mag, dir, true);
+	cartToPolar(x_grad_abs, y_grad_abs, mag, dir, true);
 
-	//display images
-	imshow("X", x_grad);
-	imshow("Y", y_grad);
-	imshow("Magnitude", mag);
+	//debug: display images
+	//imshow("X", x_grad);
+	//imshow("Y", y_grad);
+	//imshow("Magnitude", mag);
+
+	cout << dir << endl;
 
 	int i, j;
 
