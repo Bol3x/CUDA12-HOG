@@ -45,8 +45,6 @@ int main() {
 	// imshow("Y", y_grad);
 	// imshow("Magnitude", mag);
 
-	std::cout << "\n\n" << size(mag) << "\n\n" << endl;
-
 	// Determines how many histograms needed for each cell
 	const int nBin_rows = (image_pad.rows / 8) * (image_pad.cols / 8);
 	
@@ -55,33 +53,31 @@ int main() {
 	for(int i = 0; i < nBin_rows; ++i){
 		HOGBin[i] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 	}
-	cout << "\n\n" << endl;
 
-	for(int i = 0; i < nBin_rows; ++i){
-		for(int j = 0; j < 9; ++j)
-			cout << HOGBin[i][j] << " " << endl;
-		cout << "\n" << endl;
+
+	/*
+		Initialize the Bins
+		Binning Method : Method 4 
+		Source: https://www.analyticsvidhya.com/blog/2019/09/feature-engineering-images-introduction-hog-feature-descriptor/#h-step-4-calculate-histogram-of-gradients-in-8x8-cells-9x1
+	*/
+	int bin_key = 0; 
+	for(int index = 0; index < nBin_rows; ++index){
+		// First two for loops traversing each cell 
+		for(int i = 0; i < image_pad.rows; i +=8){
+			for(int j = 0; j < image_pad.cols; j += 8){
+				
+				// Perform binning of each cell
+				for(int x = i; x < i + 8; ++x){
+					for (int y = j; y < j + 8; ++y){
+
+						// cout << "\n\n" << dir.at<float>(x,y) << "\n\n";
+
+					}
+				}
+			}
+		}
+
 	}
-	
-
-	cout << "\n\n" << endl;
-
-	// Initialize bins
-
-
-	// int i, j;
-
-	//loop through each block in the matrix (as per Dalal & Triggs' algorithm)
-	// for (i = 0; i < image_pad.rows; i += block_size) {
-	// 	for (j = 0; j < image_pad.cols; j += block_size) {
-
-	// 		//todo: binning of gradients to angles
-
-
-	// 	}
-	// }
-
-
 	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
 	
 
@@ -99,7 +95,7 @@ int main() {
 	delete[] HOGBin;
 
 	waitKey(0);
-
+	cout << "EOP";
 	return 0;
 }
 

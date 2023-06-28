@@ -4,24 +4,11 @@
 using namespace std;
 
 int main(){
-	int rows, cols;
 
-	cin >> rows;
-	cin >> cols;
+	double x = 60.2;
+	int num = x;
 
-	double **arr;
-	arr = new double *[rows];
-
-	for (int i = 0; i < rows; ++i){
-		arr[i] = new double[cols];
-	}
-
-	for (int i = 0; i < rows; ++i){
-		delete[] arr[i];
-	}
-	delete[] arr;
-
-
+	cout << num /20; 
 
     return 0;
 }
