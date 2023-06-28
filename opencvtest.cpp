@@ -1,15 +1,20 @@
-#include <opencv2/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
+#include <opencv2/opencv.hpp>
 
 using namespace cv;
 using namespace std;
 
+  #include <windows.h>
 
 
 int main() {
-	string image_path = "C:/Users/Carlo/Downloads/robot.png";
+	// 
+	char buffer[MAX_PATH];
+  	::GetCurrentDirectory(MAX_PATH, buffer);
+  	cout << "Current directory: " << buffer << endl;
+	string image_path = ".\\input_img\\dog.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -49,17 +54,17 @@ int main() {
 
 	cout << dir << endl;
 
-	int i, j;
+	// int i, j;
 
 	//loop through each block in the matrix (as per Dalal & Triggs' algorithm)
-	for (i = 0; i < image_pad.rows; i += block_size) {
-		for (j = 0; j < image_pad.cols; j += block_size) {
+	// for (i = 0; i < image_pad.rows; i += block_size) {
+	// 	for (j = 0; j < image_pad.cols; j += block_size) {
 
-			//todo: binning of gradients to angles
+	// 		//todo: binning of gradients to angles
 
 
-		}
-	}
+	// 	}
+	// }
 
 
 	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
