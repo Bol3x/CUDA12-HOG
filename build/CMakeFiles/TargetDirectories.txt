@@ -1,0 +1,9 @@
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/Experimental.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/Nightly.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/Continuous.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/NightlyMemoryCheck.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/CUDA12-HOG.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/PACKAGE.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/RUN_TESTS.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/ALL_BUILD.dir
+D:/Github_Repositories/CUDA12-HOG/build/CMakeFiles/ZERO_CHECK.dir
