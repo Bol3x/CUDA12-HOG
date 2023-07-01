@@ -77,41 +77,41 @@ int main() {
 	double angle = 0.0, bin_value = 0.0;
 	const double bins[9] ={0.0,20.0,40.0,60.0,80.0,100.0,120.0,140.0,160.0};
 
-	for (int row_index = 0; row_index < ncell_rows; ++row_index){
-		for(int col_index = 0; col_index < ncell_cols; ++col_index){
-			
+	int HOG_row = 0, HOG_col = 0;
+
 			// Traverse each cell row-wise
-			for(int i = 0; i < dir.rows; i += 8){
-				for(int j = 0; j < dir.cols; j+=8){
+for(int i = 0; i < dir.rows; i += 8){
+	for(int j = 0; j < dir.cols; j+=8){
+	HOG_row = i / 8;
+	HOG_col = j /8;
+	// Compute for HOG Bin of each cell
+	for (int x = i; x < i + 8; ++x){
+		for(int y = j; y < j + 8; ++y){
+			
+			angle = dir.at<float>(x,y);
+			bin_key = angle/20;
+
+			bin_value = ((angle - bins[bin_key])/ 20.0) * mag.at<float>(x,y);
+
+			switch(bin_key){
+				case 8:
+				// If vector direction is between 160 and 180 wrap around 0 
+				HOGBin[HOG_row][HOG_col][0] += bin_value;
+				break;
 				
-				// Compute for HOG Bin of each cell
-				for (int x = i; x < i + 8; ++x){
-					for(int y = j; y < j + 8; ++y){
-						
-						angle = dir.at<float>(x,y);
-						bin_key = angle/20;
-
-						bin_value = ((angle - bins[bin_key])/ 20.0) * mag.at<float>(x,y);
-
-						switch(bin_key){
-							case 8:
-							// If vector direction is between 160 and 180 wrap around 0 
-							HOGBin[row_index][col_index][0] += bin_value;
-							break;
-							
-							default:
-							HOGBin[row_index][col_index][bin_key + 1] += bin_value;
-							break;
-						}
-
-						HOGBin[row_index][col_index][bin_key] += mag.at<float>(x,y) - bin_value;
-					}
-				}
-
-				}
+				default:
+				HOGBin[HOG_row][HOG_col][bin_key + 1] += bin_value;
+				break;
 			}
+
+			HOGBin[HOG_row][HOG_col][bin_key] += mag.at<float>(x,y) - bin_value;
 		}
 	}
+
+	}
+}
+		
+	
 
 		for(int i = 0; i < ncell_rows; ++i){
 			for(int j = 0; j < ncell_cols; ++j){
