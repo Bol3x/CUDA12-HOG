@@ -72,6 +72,9 @@ int main() {
 		Source: https://www.analyticsvidhya.com/blog/2019/09/feature-engineering-images-introduction-hog-feature-descriptor/#h-step-4-calculate-histogram-of-gradients-in-8x8-cells-9x1
 		
 		Resized image is N x N in size
+
+		* bins are are stored sequentially - index 0 = bin 0 and index 8 = bin 160
+		* Magnitude of the corresponding pixel is distributed
 	*/
 	int bin_key = 0; 
 	double angle = 0.0, bin_value = 0.0;
@@ -79,7 +82,7 @@ int main() {
 
 	int HOG_row = 0, HOG_col = 0;
 
-			// Traverse each cell row-wise
+// Traverse each cell row-wise
 for(int i = 0; i < dir.rows; i += 8){
 	for(int j = 0; j < dir.cols; j+=8){
 	HOG_row = i / 8;
@@ -89,6 +92,8 @@ for(int i = 0; i < dir.rows; i += 8){
 		for(int y = j; y < j + 8; ++y){
 			
 			angle = dir.at<float>(x,y);
+			
+			// Round down to get which bin the direction belong to.
 			bin_key = angle/20;
 
 			bin_value = ((angle - bins[bin_key])/ 20.0) * mag.at<float>(x,y);
@@ -112,15 +117,15 @@ for(int i = 0; i < dir.rows; i += 8){
 }
 		
 	
-
-		for(int i = 0; i < ncell_rows; ++i){
-			for(int j = 0; j < ncell_cols; ++j){
-				for(int k = 0; k < 9; ++k){
-					cout << HOGBin[i][j][k] << " ";
-				}
-				cout << endl;
-		}
+// Optional : Shows the HOG distribution of each cell 
+	for(int i = 0; i < ncell_rows; ++i){
+		for(int j = 0; j < ncell_cols; ++j){
+			for(int k = 0; k < 9; ++k){
+				cout << HOGBin[i][j][k] << " ";
+			}
+			cout << endl;
 	}
+}
 	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
 	
 
