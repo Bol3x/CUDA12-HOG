@@ -2,6 +2,8 @@
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <cmath>
+
 
 using namespace cv;
 using namespace std;
@@ -108,8 +110,8 @@ for(int i = 0; i < dir.rows; i += 8){
 				HOGBin[HOG_row][HOG_col][bin_key + 1] += bin_value;
 				break;
 			}
-
-			HOGBin[HOG_row][HOG_col][bin_key] += mag.at<float>(x,y) - bin_value;
+			// Take absolute value
+			HOGBin[HOG_row][HOG_col][bin_key] += fabs(angle - bin_value) ;
 		}
 	}
 
@@ -145,8 +147,6 @@ for(int i = 0; i < dir.rows; i += 8){
 	}
 	delete[] HOGBin;
 	
-	cout << "eop" << "\n";
-
 	waitKey(0);
 	return 0;
 }
@@ -154,3 +154,4 @@ for(int i = 0; i < dir.rows; i += 8){
 //----------Useful References -------------------
 //https://learnopencv.com/histogram-of-oriented-gradients/
 //https://docs.opencv.org/4.x/d6/d6d/tutorial_mat_the_basic_image_container.html
+//https://www.analyticsvidhya.com/blog/2019/09/feature-engineering-images-introduction-hog-feature-descriptor/#h-step-4-calculate-histogram-of-gradients-in-8x8-cells-9x1
