@@ -11,7 +11,7 @@ using namespace std;
 
 int main() {
 
-	string image_path = "C:\\Users\\ryana\\OneDrive\\Desktop\\dog.jpg";
+	string image_path = "C:\\Users\\Carlo\\Downloads\\robot.png";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -37,32 +37,33 @@ int main() {
 
 	Sobel(image_pad, x_grad, CV_32FC1, 0, 1, 1);
 	Sobel(image_pad, y_grad, CV_32FC1, 1, 0, 1);
-	
-	Mat x_grad_abs = cv::abs(x_grad);
-	Mat y_grad_abs = cv::abs(y_grad);
 
 	Mat mag, dir;
-	cartToPolar(x_grad_abs, y_grad_abs, mag, dir, true);
+	cartToPolar(x_grad, y_grad, mag, dir, true);
 
-	cout << "\n\n" << dir.at<float>(12,120) << "\n\n";
+	for (int i = 0; i < dir.rows; i++) {
+		for (int j = 0; j < dir.cols; j++) {
+			//bad modulo function impl (cuz its a float)
+			if (dir.at<float>(i, j) > 180)
+				dir.at<float>(i, j) = dir.at<float>(i, j) - 180;
+		}
+	}
+
+
 	// display images
 	// imshow("X", x_grad);
 	// imshow("Y", y_grad);
-	// imshow("Magnitude", mag);
 
 	// Determines how many histograms needed for each cell
 	const int ncell_rows = image_pad.rows / 8;
 	const int ncell_cols = image_pad.cols / 8;
 	const int nBin_size = ncell_rows * ncell_cols;
 	
-	// Create 9x1 bins for each cell 
-	double ***HOGBin = new double**[nBin_size];
-	for(int i = 0; i < nBin_size; ++i){
-		HOGBin[i] = new double*[nBin_size];
-	}
-
+	// Create 9x1 bins for each cell in the bin matrix
+	double ***HOGBin = new double**[ncell_rows];
 	for(int i = 0; i < ncell_rows; ++i){
-		for(int j = 0; j < ncell_cols; ++j){
+		HOGBin[i] = new double* [ncell_cols];
+		for (int j = 0; j < ncell_cols; ++j) {
 			HOGBin[i][j] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 		}
 	}
@@ -72,62 +73,59 @@ int main() {
 		Initialize the Bins
 		Binning Method : Method 4 
 		Source: https://www.analyticsvidhya.com/blog/2019/09/feature-engineering-images-introduction-hog-feature-descriptor/#h-step-4-calculate-histogram-of-gradients-in-8x8-cells-9x1
-		
-		Resized image is N x N in size
 
 		* bins are are stored sequentially - index 0 = bin 0 and index 8 = bin 160
 		* Magnitude of the corresponding pixel is distributed
 	*/
 	int bin_key = 0; 
-	double angle = 0.0, bin_value = 0.0;
-	const double bins[9] ={0.0,20.0,40.0,60.0,80.0,100.0,120.0,140.0,160.0};
+	double angle = 0.0, bin_value_lo = 0.0, bin_value_hi = 0.0;
+	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
 
 	int HOG_row = 0, HOG_col = 0;
 
-// Traverse each cell row-wise
-for(int i = 0; i < dir.rows; i += 8){
-	for(int j = 0; j < dir.cols; j+=8){
-	HOG_row = i / 8;
-	HOG_col = j /8;
-	// Compute for HOG Bin of each cell
-	for (int x = i; x < i + 8; ++x){
-		for(int y = j; y < j + 8; ++y){
-			
-			angle = dir.at<float>(x,y);
-			
-			// Round down to get which bin the direction belong to.
-			bin_key = angle/20;
+// Traverse each cell in the original data
+for(int i = 0; i < dir.rows; i++){
+	for(int j = 0; j < dir.cols; j++){
+	//get corresponding HOG bin block
+	HOG_row = i/8;
+	HOG_col = j/8;
+	
+	//angle 
+	angle = dir.at<float>(i, j);
 
-			bin_value = ((angle - bins[bin_key])/ 20.0) * mag.at<float>(x,y);
+	// Round down to get which bin the direction belong to.
+	bin_key = angle/20;
+	bin_key %= 9;
 
-			switch(bin_key){
-				case 8:
-				// If vector direction is between 160 and 180 wrap around 0 
-				HOGBin[HOG_row][HOG_col][0] += bin_value;
-				break;
-				
-				default:
-				HOGBin[HOG_row][HOG_col][bin_key + 1] += bin_value;
-				break;
-			}
-			// Take absolute value
-			HOGBin[HOG_row][HOG_col][bin_key] += fabs(angle - bin_value) ;
-		}
+	//special case for 180 - move value to 0 bin (bins wrap around)
+	if (angle == 180.0) {
+		angle = 0;
 	}
 
+	//equally divide contributions to different angle bins
+	bin_value_lo = ((bins[bin_key+1] - angle)/ 20.0) * mag.at<float>(i, j);
+	bin_value_hi = ((angle - bins[bin_key])/20.0) * mag.at<float>(i, j);
+
+	//add value to bin
+	HOGBin[HOG_row][HOG_col][bin_key] += bin_value_lo;
+	HOGBin[HOG_row][HOG_col][(bin_key + 1) % 9] += bin_value_hi;
 	}
 }
-		
 	
-// Optional : Shows the HOG distribution of each cell 
-	for(int i = 0; i < ncell_rows; ++i){
-		for(int j = 0; j < ncell_cols; ++j){
-			for(int k = 0; k < 9; ++k){
-				cout << HOGBin[i][j][k] << " ";
+	// Optional : Shows the HOG distribution of each cell 
+	cout << "Result: " << endl;
+	for (int i = 0; i < ncell_rows; ++i) {
+		cout << "Row " << i << endl;
+		for (int j = 0; j < ncell_cols; ++j) {
+			for (int k = 0; k < 9; ++k) {
+				cout << HOGBin[i][j][k] << "\t";
 			}
 			cout << endl;
+		}
+
 	}
-}
+	cout << endl;
+
 	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
 	
 
@@ -135,8 +133,12 @@ for(int i = 0; i < dir.rows; i += 8){
 	//todo: normalization (L2 Norm) of resulting gradients
 
 
+
+
 	// cout << dir ;
 	//todo: display HOG
+
+
 
 	// Free memory
 	for (int i = 0; i < ncell_rows; ++i){
