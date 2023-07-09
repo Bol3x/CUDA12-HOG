@@ -77,8 +77,8 @@ int main() {
 		* bins are are stored sequentially - index 0 = bin 0 and index 8 = bin 160
 		* Magnitude of the corresponding pixel is distributed
 	*/
-	int bin_key = 0; 
-	double angle = 0.0, bin_value_lo = 0.0, bin_value_hi = 0.0;
+	int bin_key = 0;
+	double mag_val = 0.0, angle = 0.0, bin_value_lo = 0.0, bin_value_hi = 0.0;
 	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
 
 	int HOG_row = 0, HOG_col = 0;
@@ -92,6 +92,8 @@ for(int i = 0; i < dir.rows; i++){
 	
 	//angle 
 	angle = dir.at<float>(i, j);
+	//mag
+	mag_val = mag.at<float>(i, j);
 
 	// Round down to get which bin the direction belong to.
 	bin_key = angle/20;
@@ -103,8 +105,8 @@ for(int i = 0; i < dir.rows; i++){
 	}
 
 	//equally divide contributions to different angle bins
-	bin_value_lo = ((bins[bin_key+1] - angle)/ 20.0) * mag.at<float>(i, j);
-	bin_value_hi = ((angle - bins[bin_key])/20.0) * mag.at<float>(i, j);
+	bin_value_lo = ((bins[bin_key+1] - angle)/ 20.0) * mag_val;
+	bin_value_hi = fabs(bin_value_lo - mag_val);
 
 	//add value to bin
 	HOGBin[HOG_row][HOG_col][bin_key] += bin_value_lo;
