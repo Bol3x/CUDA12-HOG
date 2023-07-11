@@ -2,8 +2,6 @@
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <opencv2/opencv.hpp>
-
-#define _USE_MATH_DEFINES
 #include <cmath>
 
 
@@ -156,7 +154,6 @@ int main() {
 
 	compute_gradients(x_grad, y_grad, image_pad);
 
-
 	/************************************************************
 	*					3. Computing Polar values
 	*************************************************************/
@@ -165,14 +162,6 @@ int main() {
 	Mat dir = Mat(img_size, CV_32FC1);
 
 	compute_polar(mag, dir, x_grad, y_grad);
-
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++)
-			cout << dir.at<float>(i, j) << "\t";
-
-		cout << endl;
-	}
-	cout << endl;
 
 	/************************************************************
 	*			4. Binning Gradients to Angle bins
