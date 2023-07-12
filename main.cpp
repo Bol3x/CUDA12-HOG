@@ -125,7 +125,7 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:\\Users\\Carlo\\Downloads\\robot.png";
+	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_60.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -154,6 +154,8 @@ int main() {
 
 	compute_gradients(x_grad, y_grad, image_pad);
 
+
+
 	/************************************************************
 	*					3. Computing Polar values
 	*************************************************************/
@@ -162,6 +164,25 @@ int main() {
 	Mat dir = Mat(img_size, CV_32FC1);
 
 	compute_polar(mag, dir, x_grad, y_grad);
+
+	cout << "Magnitude" << endl;
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			cout << mag.at<float>(i, j) << "\t";
+		}
+		cout << endl;
+	}
+	cout << endl;
+
+
+	cout << "direction" << endl;
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			cout << dir.at<float>(i, j) << "\t";
+		}
+		cout << endl;
+	}
+	cout << endl;
 
 	/************************************************************
 	*			4. Binning Gradients to Angle bins
@@ -183,8 +204,9 @@ int main() {
 
 	bin_gradients(HOGBin, mag, dir);
 
-	for (int i = 0; i < ncell_rows; i++) {
-		for (int j = 0; j < ncell_cols; j++) {
+	cout << "Bins" << endl;
+	for (int i = 0; i < 1; i++) {
+		for (int j = 0; j < 1; j++) {
 			for (int k = 0; k < 9; k++)
 				cout << HOGBin[i][j][k] << "\t";
 			cout << endl;
