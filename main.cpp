@@ -2,8 +2,6 @@
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <opencv2/opencv.hpp>
-
-#define _USE_MATH_DEFINES
 #include <cmath>
 
 
@@ -161,7 +159,7 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:/Users/ryana/OneDrive/Desktop/dog.jpg";
+	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_60.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -191,6 +189,7 @@ int main() {
 	compute_gradients(x_grad, y_grad, image_pad);
 
 
+
 	/************************************************************
 	*					3. Computing Polar values
 	*************************************************************/
@@ -200,10 +199,21 @@ int main() {
 
 	compute_polar(mag, dir, x_grad, y_grad);
 
+	cout << "Magnitude" << endl;
 	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++)
-			cout << dir.at<float>(i, j) << "\t";
+		for (int j = 0; j < 8; j++) {
+			cout << mag.at<float>(i, j) << "\t";
+		}
+		cout << endl;
+	}
+	cout << endl;
 
+
+	cout << "direction" << endl;
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			cout << dir.at<float>(i, j) << "\t";
+		}
 		cout << endl;
 	}
 	cout << endl;
@@ -228,15 +238,16 @@ int main() {
 
 	bin_gradients(HOGBin, mag, dir);
 
-	// for (int i = 0; i < ncell_rows; i++) {
-	// 	for (int j = 0; j < ncell_cols; j++) {
-	// 		for (int k = 0; k < 9; k++)
-	// 			cout << HOGBin[i][j][k] << "\t";
-	// 		cout << endl;
-	// 	}
-	// 	cout << endl;
-	// }
-	// cout << endl;
+	cout << "Bins" << endl;
+	for (int i = 0; i < 1; i++) {
+		for (int j = 0; j < 1; j++) {
+			for (int k = 0; k < 9; k++)
+				cout << HOGBin[i][j][k] << "\t";
+			cout << endl;
+		}
+		cout << endl;
+	}
+	cout << endl;
 
 
 	/************************************************************
@@ -250,11 +261,13 @@ int main() {
 
 	normalizeGradients(HOGFeatures, HOGBin, ncell_rows, ncell_cols);
 
-	//todo: display HOG
 
 	for(int i = 0; i < features; ++i){
 		cout << HOGFeatures[i] << "\n";
 	}
+
+		//todo: display HOG
+
 	
 	// Free memory
 	for (int i = 0; i < ncell_rows; ++i){
