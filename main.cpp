@@ -120,6 +120,40 @@ void bin_gradients(double*** HOGBin, Mat mag, Mat dir) {
 	}
 }
 
+void L2Normalization(double *HOGFeatures, int feature_index){
+	int start = feature_index - 36;
+	double k = 0;
+
+	for (int i = start; i < feature_index; ++i){
+		k += pow(HOGFeatures[i], 2);
+	}
+
+	k = sqrt(k); 
+
+	for (int i = start; i < feature_index; ++i){
+		HOGFeatures[i] = HOGFeatures[i] /k;
+	}
+}
+
+void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols){
+	int feature_index = 0;
+		for (int i = 0; i < rows -1 ; i++) {
+			for (int j = 0; j < cols - 1; j++) {
+
+				for (int x = i; x < i + 2; ++x){
+					for(int y = j; y < j + 2; ++y){
+
+						for (int k = 0; k < 9; k++){
+							HOGFeatures[feature_index++] = HOGBin[x][y][k];
+						}
+				}
+			}
+			L2Normalization(HOGFeatures, feature_index);
+		}
+	}
+	
+}
+
 
 int main() {
 
@@ -127,7 +161,7 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:\\Users\\Carlo\\Downloads\\robot.png";
+	string image_path = "C:/Users/ryana/OneDrive/Desktop/dog.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -194,31 +228,34 @@ int main() {
 
 	bin_gradients(HOGBin, mag, dir);
 
-	for (int i = 0; i < ncell_rows; i++) {
-		for (int j = 0; j < ncell_cols; j++) {
-			for (int k = 0; k < 9; k++)
-				cout << HOGBin[i][j][k] << "\t";
-			cout << endl;
-		}
-		cout << endl;
-	}
-	cout << endl;
+	// for (int i = 0; i < ncell_rows; i++) {
+	// 	for (int j = 0; j < ncell_cols; j++) {
+	// 		for (int k = 0; k < 9; k++)
+	// 			cout << HOGBin[i][j][k] << "\t";
+	// 		cout << endl;
+	// 	}
+	// 	cout << endl;
+	// }
+	// cout << endl;
 
 
-	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
+	/************************************************************
+	*			4. Normalize Gradients in a 16x16 cell
+	*************************************************************/
+
+	// Determine number of features
 	
+	const int features = (ncell_rows - 1) * (ncell_cols - 1) * 36;
+	double *HOGFeatures = new double[features];
 
+	normalizeGradients(HOGFeatures, HOGBin, ncell_rows, ncell_cols);
 
-	//todo: normalization (L2 Norm) of resulting gradients
-
-
-
-
-	// cout << dir ;
 	//todo: display HOG
 
-
-
+	for(int i = 0; i < features; ++i){
+		cout << HOGFeatures[i] << "\n";
+	}
+	
 	// Free memory
 	for (int i = 0; i < ncell_rows; ++i){
 		for(int j = 0; j < ncell_cols; ++j){
@@ -228,6 +265,7 @@ int main() {
 	}
 	delete[] HOGBin;
 	
+	delete[] HOGFeatures; 
 	waitKey(0);
 	return 0;
 }
