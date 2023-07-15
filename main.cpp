@@ -9,6 +9,18 @@ using namespace cv;
 using namespace std;
 
 
+void displayBlock(Mat img) {
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			cout << img.at<float>(i, j) << "\t";
+		}
+		cout << endl;
+	}
+	cout << endl;
+}
+
+
+
 /**
 *	Computes for the x and y gradients of a given input matrix
 *	Performs a 1D sobel filter with the top and left values negative, while bottom and right values positive
@@ -16,8 +28,10 @@ using namespace std;
 */
 void compute_gradients(Mat x_grad, Mat y_grad, Mat input_data) {
 	//initialize first row as all 0's
-	for (int j = 0; j < input_data.cols; j++)
+	for (int j = 0; j < input_data.cols; j++) {
 		x_grad.at<float>(0, j) = 0;
+		x_grad.at<float>(x_grad.rows-1, j) = 0;
+	}
 
 	//compute x gradients
 	float top, bottom;
@@ -31,8 +45,10 @@ void compute_gradients(Mat x_grad, Mat y_grad, Mat input_data) {
 	}
 
 	//initialize first column as all 0's
-	for (int i = 0; i < input_data.rows; i++)
+	for (int i = 0; i < input_data.rows; i++) {
 		y_grad.at<float>(i, 0) = 0;
+		y_grad.at<float>(i, y_grad.cols - 1) = 0;
+	}
 
 	//compute y gradients
 	float left, right;
@@ -118,38 +134,44 @@ void bin_gradients(double*** HOGBin, Mat mag, Mat dir) {
 	}
 }
 
-void L2Normalization(double *HOGFeatures, int feature_index){
-	int start = feature_index - 36;
-	double k = 0;
+void L2Normalization(double *HOGFeatures, int n){
+	double norm;
+	double temp;
+	//loop over each 2x2 block
+	for (int i = 0; i < n; i+=36) {
+		norm = 0;
+		//
+		for (int k = 0; k < 36; k++) {
+			temp = HOGFeatures[i + k];
+			norm += temp * temp;
+		}
 
-	for (int i = start; i < feature_index; ++i){
-		k += pow(HOGFeatures[i], 2);
-	}
+		norm = sqrt(norm);
 
-	k = sqrt(k); 
-
-	for (int i = start; i < feature_index; ++i){
-		HOGFeatures[i] = HOGFeatures[i] /k;
+		for (int k = 0; k < 36; k++)
+			HOGFeatures[i + k] /= sqrt(norm*norm + 1e-6*1e-6);
 	}
 }
 
-void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols){
+void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols, int num_elem){
 	int feature_index = 0;
-		for (int i = 0; i < rows -1 ; i++) {
-			for (int j = 0; j < cols - 1; j++) {
+	//copy-in bin data
+	for (int n = 0; n < rows-1; n++) {
+		for (int m = 0; m < cols-1; m++) {
 
-				for (int x = i; x < i + 2; ++x){
-					for(int y = j; y < j + 2; ++y){
-
-						for (int k = 0; k < 9; k++){
-							HOGFeatures[feature_index++] = HOGBin[x][y][k];
-						}
-				}
+			for (int i = 0; i < 9; i++) {
+				HOGFeatures[feature_index + i] = HOGBin[n][m][i];
+				HOGFeatures[feature_index + 9 + i] = HOGBin[n][m+1][i];
+				HOGFeatures[feature_index + 18 + i] = HOGBin[n+1][m][i];
+				HOGFeatures[feature_index + 27 + i] = HOGBin[n+1][m+1][i];
 			}
-			L2Normalization(HOGFeatures, feature_index);
+
+			feature_index += 36;
 		}
 	}
-	
+
+	//perform L2 Norm on each 1x36 feature
+	L2Normalization(HOGFeatures, num_elem);
 }
 
 
@@ -188,7 +210,11 @@ int main() {
 
 	compute_gradients(x_grad, y_grad, image_pad);
 
+	cout << "x" << endl;
+	displayBlock(x_grad);
 
+	cout << "y" << endl;
+	displayBlock(y_grad);
 
 	/************************************************************
 	*					3. Computing Polar values
@@ -199,24 +225,12 @@ int main() {
 
 	compute_polar(mag, dir, x_grad, y_grad);
 
-	cout << "Magnitude" << endl;
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			cout << mag.at<float>(i, j) << "\t";
-		}
-		cout << endl;
-	}
-	cout << endl;
+	cout << "mag" << endl;
+	displayBlock(mag);
 
 
-	cout << "direction" << endl;
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			cout << dir.at<float>(i, j) << "\t";
-		}
-		cout << endl;
-	}
-	cout << endl;
+	cout << "dir" << endl;
+	displayBlock(dir);
 
 	/************************************************************
 	*			4. Binning Gradients to Angle bins
@@ -251,25 +265,34 @@ int main() {
 
 
 	/************************************************************
-	*			4. Normalize Gradients in a 16x16 cell
+	*			5. Normalize Gradients in a 16x16 cell
 	*************************************************************/
 
 	// Determine number of features
 	
-	const int features = (ncell_rows - 1) * (ncell_cols - 1) * 36;
+	const int features = (ncell_rows-1) * (ncell_cols-1) * 36;
 	double *HOGFeatures = new double[features];
 
-	normalizeGradients(HOGFeatures, HOGBin, ncell_rows, ncell_cols);
+	normalizeGradients(HOGFeatures, HOGBin, ncell_rows, ncell_cols, features);
 
+	unsigned int err_count = 0;
+	for(int i = 0; i < features; i++){
 
-	for(int i = 0; i < features; ++i){
-		cout << HOGFeatures[i] << "\n";
+		if (HOGFeatures[i] < 0 || HOGFeatures[i] > 1) {
+			err_count++;
+			cout << HOGFeatures[i] << "\t" << i << endl;
+		}
 	}
-
-		//todo: display HOG
-
+	cout << "\n" << err_count << endl;
 	
-	// Free memory
+	/************************************************************
+	*			6.		Visualizing HOG Features
+	*************************************************************/
+
+
+
+
+	// Free memory used for calculating HOG features
 	for (int i = 0; i < ncell_rows; ++i){
 		for(int j = 0; j < ncell_cols; ++j){
 			delete[] HOGBin[i][j];
@@ -278,7 +301,6 @@ int main() {
 	}
 	delete[] HOGBin;
 	
-	delete[] HOGFeatures; 
 	waitKey(0);
 	return 0;
 }
