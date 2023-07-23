@@ -80,6 +80,55 @@ void compute_angles(float* dir_out, float* x_in, float* y_in, int rows, int cols
 	}
 }
 
+__global__
+void L2norm_2x2 ( double * x_out, double * x_in, int rows, int cols){
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	double temp;
+		for (i; i < rows * cols; i += stride) {
+			temp = x_in[i + cols];
+			x_out += temp*temp;
+		}
+
+}
+
+__global__
+void L2norm_sqrt (double * x_out, double * x_in, int n){
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	
+	for (i; i< rows; i += stride){
+		x_out = sqrt(x_in);
+	}
+}
+
+__global__
+void L2norm (double * x_out, double * x_in, int rows, int cols)
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	for(i; i< rows*cols; i+= stride){
+		x_out(i+cols) /= sqrt(x_in*xin + 1e-6*1e-6);
+	}
+
+__global__
+void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols, int num_elem)
+
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	int temp = 0;
+
+	for (i; i< (rows-1)*(cols-1)*(9); i+=stride){
+		HOGFeatures[temp +i]= 
+	}
+
 
 /*
 *	wrapper function to compute gradients using CUDA
