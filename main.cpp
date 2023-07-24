@@ -4,6 +4,9 @@
 #include <opencv2/opencv.hpp>
 #include <cmath>
 
+//test HOG
+#include <opencv2/objdetect.hpp>
+
 
 using namespace cv;
 using namespace std;
@@ -18,7 +21,6 @@ void displayBlock(Mat img) {
 	}
 	cout << endl;
 }
-
 
 
 /**
@@ -274,21 +276,26 @@ int main() {
 	double *HOGFeatures = new double[features];
 
 	normalizeGradients(HOGFeatures, HOGBin, ncell_rows, ncell_cols, features);
-
-	unsigned int err_count = 0;
-	for(int i = 0; i < features; i++){
-
-		if (HOGFeatures[i] < 0 || HOGFeatures[i] > 1) {
-			err_count++;
-			cout << HOGFeatures[i] << "\t" << i << endl;
-		}
-	}
-	cout << "\n" << err_count << endl;
 	
 	/************************************************************
 	*			6.		Visualizing HOG Features
 	*************************************************************/
 
+	
+	HOGDescriptor hg = HOGDescriptor(img_size, Size(16, 16), Size(8, 8), Size(8, 8), 9);
+	Mat cv_grad = Mat(img_size, CV_32FC2), cv_angle = Mat(img_size, CV_8UC2);
+
+	Mat test = Mat(img_size, CV_8UC1);
+	image_pad.convertTo(test, CV_8UC1);
+	hg.computeGradient(test, cv_grad, cv_angle);
+
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			cout << cv_angle.at<int>(i, j) << "\t";
+		}
+		cout << endl;
+	}
+	cout << endl;
 
 
 
