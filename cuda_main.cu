@@ -117,19 +117,30 @@ void L2norm (double * x_out, double * x_in, int rows, int cols)
 	}
 
 __global__
-void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols, int num_elem)
+void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols, int num_elem){
 
-	const int index = blockIdx.x * blockDim.x + threadIdx.x;
-	const int stride = blockDim.x * gridDim.x;
+	const int x = blockIdx.x * blockDim.x + threadIdx.x;
+	const int y = blockIdx.y * blockDim.y + threadIdx.y;
+	const int z = blockIdx.z * blockDim.z + threadIdx.z;
 
-	int i = index;
-	int temp = 0;
+	int feature_index = 0;
 
-	for (i; i< (rows-1)*(cols-1)*(9); i+=stride){
-		HOGFeatures[temp +i]= 
+	if (i < rows-1 && y < cols-1){
+
+		if (z < 9){
+			HOGFeatures[feature_index + z] = HOGBin[x][y][z];
+			HOGFeatures[feature_index + 9 + z] = HOGBin[x][y+1][z];
+			HOGFeatures[feature_index + 18 + z] = HOGBin[x+1][y][z];
+			HOGFeatures[feature_index + 27 + z] = HOGBin[x+1][y+1][z];
+		}
+		else{
+			feature_index =+36;
+		}
 	}
 
-
+	L2Normalization(HOGFeatures, num_elem);
+	
+}
 /*
 *	wrapper function to compute gradients using CUDA
 */
