@@ -1,5 +1,3 @@
-#define _USE_MATH_DEFINES
-
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
@@ -9,67 +7,185 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
-#include <cmath>
 #include <cassert>
+#include <cmath>
 
 using namespace cv;
 using namespace std;
 
-void displayBlock(Mat img) {
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			cout << img.at<float>(i, j) << "\t";
-		}
-		cout << endl;
-	}
-	cout << endl;
-}
 
 /*
-* Computes the gradient magnitude and direction of each pixel in the image
+* 
 */
 __global__
-void computegrad_device(float* mag, float* dir, unsigned char* input, int rows, int cols) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
+void compute_x_gradients(float* x_out, float* input, int rows, int cols) {
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
 	const int stride = blockDim.x * gridDim.x;
-
-	float x, y;
-	float temp;
+	
+	int i = index;
 	//compute x gradients
-	for (i; i < rows * cols; i += stride) {
-		//do not include first and last cols (borders)
-		y = (i % cols == 0 || i % cols == cols - 1) ?
-			0 : input[i + 1] - input[i - 1];
-
-		//do not include first and last rows (borders)
-		x = (i < cols || i >= (rows - 1) * cols) ?
-			0 : input[i + cols] - input[i - cols];
-
-		mag[i] = sqrt(x * x + y * y);
-		temp = atan2(y, x) * 180 / M_PI;
-		if (temp < 0) temp += 180;
-		dir[i] = temp;
+	//do not include first and last rows (borders)
+	for (i; i < (rows) * cols; i += stride) {
+		if (i < cols || i >= (rows-1) * cols)
+			x_out[i] = 0;
+		else
+			x_out[i] = input[i + cols] - input[i - cols];
 	}
 }
 
+
+__global__
+void compute_y_gradients(float* y_out, float* input, int rows, int cols) {
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+
+	//compute y gradients
+	//do not include first and last rows (borders)
+	for (int i = index; i < rows * cols; i += stride) {
+		if (i % cols == 0 || i % cols == cols - 1)
+			y_out[i] = 0;
+		else
+			y_out[i] = input[i + 1] - input[i - 1];
+	}
+}
+
+
+__global__
+void compute_magnitudes(float* mag_out, float* x_in, float* y_in, int rows, int cols) {
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+
+	for (i; i < rows * cols; i += stride) {
+		mag_out[i] = sqrt((x_in[i] * x_in[i]) + (y_in[i] * y_in[i]));
+	}
+}
+
+
+__global__
+void compute_angles(float* dir_out, float* x_in, float* y_in, int rows, int cols, const double pi) {
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	double temp;
+
+	for (i; i < rows * cols; i += stride) {
+		temp = atan2(y_in[i], x_in[i]) * 180/pi;
+		if (temp < 0) temp += 180;
+		dir_out[i] = temp;
+	}
+}
+
+__global__
+void L2norm_2x2 ( double * x_out, double * x_in, int rows, int cols){
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	double temp;
+		for (i; i < rows * cols; i += stride) {
+			temp = x_in[i + cols];
+			x_out += temp*temp;
+		}
+
+}
+__global__
+void L2norm_sqrt (double * x_out, double * x_in, int n){
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	
+	for (i; i< rows; i += stride){
+		x_out = sqrt(x_in);
+	}
+}
+
+__global__
+void L2norm (double * x_out, double * x_in, int rows, int cols)
+	const int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
+
+	int i = index;
+	for(i; i< rows*cols; i+= stride){
+		x_out(i+cols) /= sqrt(x_in*xin + 1e-6*1e-6);
+	}
+
+__global__
+void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols, int num_elem){
+
+	const int x = blockIdx.x * blockDim.x + threadIdx.x;
+	const int y = blockIdx.y * blockDim.y + threadIdx.y;
+	const int z = blockIdx.z * blockDim.z + threadIdx.z;
+
+	int feature_index = 0;
+
+	if (i < rows-1 && y < cols-1){
+
+		if (z < 9){
+			HOGFeatures[feature_index + z] = HOGBin[x][y][z];
+			HOGFeatures[feature_index + 9 + z] = HOGBin[x][y+1][z];
+			HOGFeatures[feature_index + 18 + z] = HOGBin[x+1][y][z];
+			HOGFeatures[feature_index + 27 + z] = HOGBin[x+1][y+1][z];
+		}
+		else{
+			feature_index =+36;
+		}
+	}
+
+	L2Normalization(HOGFeatures, num_elem);
+	
+}
+
+__global__ 
+void bin_gradients(double*** HOGBin, float* mag, float* dir, int rows, int cols) {
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < rows && j < cols) {
+        int bin_key = 0;
+        double mag_val = 0.0, angle = 0.0, bin_value_lo = 0.0, bin_value_hi = 0.0;
+        const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
+
+        int HOG_row = i / 8;
+        int HOG_col = j / 8;
+
+        angle = dir[i * cols + j];
+        mag_val = mag[i * cols + j];
+
+        bin_key = static_cast<int>(angle / 20) % 9;
+
+        if (angle == 180.0) {
+            angle = 0;
+        }
+
+        bin_value_lo = ((bins[bin_key + 1] - angle) / 20.0) * mag_val;
+        bin_value_hi = fabs(bin_value_lo - mag_val);
+
+        atomicAdd(&HOGBin[HOG_row][HOG_col][bin_key], bin_value_lo);
+        atomicAdd(&HOGBin[HOG_row][HOG_col][(bin_key + 1) % 9], bin_value_hi);
+    }
+}
 /*
 *	wrapper function to compute gradients using CUDA
-*	todo: delete prints in final version
 */
-void compute_gradients(Mat& mag, Mat& dir, Mat& input_mat) {
+void compute_gradients(Mat& x_grad, Mat& y_grad, Mat& input_mat) {
 
 	//number of bytes for the matrix - step is bytes per row
-	const int BYTE_SIZE = input_mat.rows * input_mat.cols * sizeof(float);
+	const int BYTE_SIZE = input_mat.step * input_mat.rows;
 	const int ARRAY_SIZE = input_mat.rows * input_mat.cols;
 
 	//create pointers to put into the kernel
-	float* mag_out, * dir_out;
-	unsigned char* input;
+	float* x_out, * y_out, * input;
 
 	//allocate unified memory to pointers
-	cudaMallocManaged(&input, ARRAY_SIZE);
-	cudaMallocManaged(&mag_out, BYTE_SIZE);
-	cudaMallocManaged(&dir_out, BYTE_SIZE);
+	cudaMallocManaged(&input, BYTE_SIZE);
+	cudaMallocManaged(&x_out, BYTE_SIZE);
+	cudaMallocManaged(&y_out, BYTE_SIZE);
 
 	cout << "Copying data to input...\n" << endl;
 
@@ -80,29 +196,90 @@ void compute_gradients(Mat& mag, Mat& dir, Mat& input_mat) {
 	const int numThreads = 1024;
 	const int numBlocks = (ARRAY_SIZE + numThreads - 1) / numThreads;
 
-	cout << "Launching kernel...\n" << endl;
+	cout << "Launching kernels...\n" << endl;
 
 	//launch kernel
 	//todo: parallelize kernel executions to improve performance
-	computegrad_device <<< numBlocks, numThreads >>> (mag_out, dir_out, input, input_mat.rows, input_mat.cols);
+	compute_x_gradients <<< numBlocks, numThreads >>> (x_out, input, input_mat.rows, input_mat.cols);
 	cudaDeviceSynchronize();
 
-	cout << "Copying mag output into matrices...\n" << endl;
+	cout << "Copying x output into matrices...\n" << endl;
 
 	//copy unified memory into gradient matrices
-	memcpy(mag.ptr(), mag_out, BYTE_SIZE);
+	memcpy(x_grad.ptr(), x_out, BYTE_SIZE);
 
-	cout << "Copying mag output into matrices...\n" << endl;
+	compute_y_gradients <<< numBlocks, numThreads >>> (y_out, input, input_mat.rows, input_mat.cols);
+	cudaDeviceSynchronize();
+
+	cout << "Copying y output into matrices...\n" << endl;
 
 	//copy unified memory into gradient matrices
-	memcpy(dir.ptr(), dir_out, BYTE_SIZE);
+	memcpy(y_grad.ptr(), y_out, BYTE_SIZE);
 
 	cout << "Freeing memory...\n" << endl;
 
 	//free memory allocated
-	cudaFree(mag_out);
-	cudaFree(dir_out);
+	cudaFree(x_out);
+	cudaFree(y_out);
 	cudaFree(input);
+}
+
+
+
+/*
+*	wrapper function to compute polar values on each element using CUDA
+*/
+void compute_polar(Mat& mag_mat, Mat& dir_mat, Mat& x_grad, Mat& y_grad) {
+
+	//number of bytes for the matrix - step is bytes per row
+	const int BYTE_SIZE = x_grad.step * x_grad.rows;
+	const int ARRAY_SIZE = x_grad.rows * x_grad.cols;
+	const double PI = atan(1) * 4;
+
+	//create pointers to put into the kernel
+	float* x_in, *y_in, *mag, *dir;
+
+	//allocate unified memory to pointers
+	cudaMallocManaged(&x_in, BYTE_SIZE);
+	cudaMallocManaged(&y_in, BYTE_SIZE);
+	cudaMallocManaged(&mag, BYTE_SIZE);
+	cudaMallocManaged(&dir, BYTE_SIZE);
+
+
+	cout << "Copying data to input...\n" << endl;
+
+	//copy matrix data to unified memory
+	memcpy(x_in, x_grad.ptr(), BYTE_SIZE);
+	memcpy(y_in, y_grad.ptr(), BYTE_SIZE);
+
+
+	//initialize kernel data
+	const int numThreads = 1024;
+	const int numBlocks = (ARRAY_SIZE + numThreads - 1) / numThreads;
+
+	cout << "Launching kernels...\n" << endl;
+
+	//launch kernel
+	//todo: parallelize kernel executions to improve performance
+	compute_magnitudes <<< numBlocks, numThreads >>> (mag, x_in, y_in, x_grad.rows, x_grad.cols);
+	cudaDeviceSynchronize();
+
+	compute_angles <<< numBlocks, numThreads >>> (dir, x_in, y_in, x_grad.rows, x_grad.cols, PI);
+	cudaDeviceSynchronize();
+
+	cout << "Copying outputs into matrices...\n" << endl;
+
+	//copy unified memory into gradient matrices
+	memcpy(mag_mat.ptr(), mag, BYTE_SIZE);
+	memcpy(dir_mat.ptr(), dir, BYTE_SIZE);
+
+	cout << "Freeing memory...\n" << endl;
+
+	//free memory allocated
+	cudaFree(x_in);
+	cudaFree(y_in);
+	cudaFree(mag);
+	cudaFree(dir);
 }
 
 
@@ -115,37 +292,67 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_60.jpg";
+	string image_path = "C:\\Users\\Carlo\\Downloads\\robot.png";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
 	short block_size = 8;
 
 	//pad image to make it divisible by block_size
-	resize(image,
-		image,
-		Size(image.cols - (image.cols % block_size),
-			image.rows - (image.rows % block_size))
-	);
+	Mat image_pad;
+	copyMakeBorder(image, image_pad,
+		0, block_size - image.rows % block_size,
+		0, block_size - image.cols % block_size,
+		BORDER_CONSTANT, Scalar(0));
 
-	Size img_size = image.size();
+	image_pad.convertTo(image_pad, CV_32FC1);
 
-	cout << image.rows << "\t" << image.cols << "\n" << endl;
+	Size img_size = image_pad.size();
 
+	cout << image_pad.rows << "\t" << image_pad.cols << "\n" << endl;
+
+
+	/************************************************************
+	*					2. Computing Gradients
+	*************************************************************/
+
+	Mat x_grad = Mat(img_size, CV_32FC1);
+	Mat y_grad = Mat(img_size, CV_32FC1);
+
+
+	cout << "Computing gradients...\n" << endl;
+	compute_gradients(x_grad, y_grad, image_pad);
+
+	cout << "x\n" << endl;
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			cout << x_grad.at<float>(i, j) << "\t";
+		}
+		cout << endl;
+	}
+	cout << endl;
+
+
+	cout << "y\n" << endl;
+	for (int i = 0; i < 8; i++) {
+		for (int j = 0; j < 8; j++) {
+			cout << y_grad.at<float>(i, j) << "\t";
+		}
+		cout << endl;
+	}
+	cout << endl;
 
 	/************************************************************
 	*					3. Computing Polar values
 	*************************************************************/
-	//passover control to GPU
 
 	Mat mag = Mat(img_size, CV_32FC1);
 	Mat dir = Mat(img_size, CV_32FC1);
 
-	//call aux function
-	compute_gradients(mag, dir, image);
+	cout << "Computing polars...\n" << endl;
+	compute_polar(mag, dir, x_grad, y_grad); 
 
-
-	cout << "mag" << endl;
+	cout << "mag\n" << endl;
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 8; j++) {
 			cout << mag.at<float>(i, j) << "\t";
@@ -154,19 +361,14 @@ int main() {
 	}
 	cout << endl;
 
-	cout << "dir" << endl;
+	cout << "dir\n" << endl;
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 8; j++) {
 			cout << dir.at<float>(i, j) << "\t";
 		}
 		cout << endl;
 	}
-
-
-	/************************************************************
-	*					3. Computing Polar values
-	*************************************************************/
-
+	cout << endl;
 
 	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
 
