@@ -1,8 +1,11 @@
+#define _USE_MATH_DEFINES
+
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <cmath>
+#include <time.h>
 
 //test HOG
 #include <opencv2/objdetect.hpp>
@@ -26,66 +29,25 @@ void displayBlock(Mat img) {
 /**
 *	Computes for the x and y gradients of a given input matrix
 *	Performs a 1D sobel filter with the top and left values negative, while bottom and right values positive
-*	Stores corresponding gradient value in x_grad and y_grad matrices
-*/
-void compute_gradients(Mat x_grad, Mat y_grad, Mat input_data) {
-	//initialize first row as all 0's
-	for (int j = 0; j < input_data.cols; j++) {
-		x_grad.at<float>(0, j) = 0;
-		x_grad.at<float>(x_grad.rows-1, j) = 0;
-	}
-
-	//compute x gradients
-	float top, bottom;
-	for (int i = 1; i < input_data.rows - 1; i++) {
-		for (int j = 0; j < input_data.cols; j++) {
-			bottom = input_data.at<float>(i + 1, j);
-			top = input_data.at<float>(i - 1, j);
-
-			x_grad.at<float>(i, j) = bottom - top;
-		}
-	}
-
-	//initialize first column as all 0's
-	for (int i = 0; i < input_data.rows; i++) {
-		y_grad.at<float>(i, 0) = 0;
-		y_grad.at<float>(i, y_grad.cols - 1) = 0;
-	}
-
-	//compute y gradients
-	float left, right;
-	for (int i = 0; i < input_data.rows; i++) {
-		for (int j = 1; j < input_data.cols - 1; j++) {
-			right = input_data.at<float>(i, j + 1);
-			left = input_data.at<float>(i, j - 1);
-
-			y_grad.at<float>(i, j) = right - left;
-		}
-	}
-}
-
-
-/*
-*	Computes the polar representation of the x and y magnitudes of each element in the 2 matrices.
+*	Then computes the polar representation of the x and y magnitudes of each element in the 2 matrices
 *	Returns the magnitude and direction of each element and stores them in mag and dir respectively
 */
-void compute_polar(Mat mag, Mat dir, Mat x_mag, Mat y_mag) {
-	float x_val, y_val, res_dir;
-	double pi = atan(1) * 4;
-	//compute magnitude and direction of cartesian coordinates x_val and y_val
-	for (int i = 0; i < x_mag.rows; i++) {
-		for (int j = 0; j < x_mag.cols; j++) {
-			x_val = x_mag.at<float>(i, j);
-			y_val = y_mag.at<float>(i, j);
+void compute_gradients(Mat& mag, Mat& dir, Mat input_data, int rows, int cols) {
 
-			mag.at<float>(i, j) = sqrt(pow(x_val, 2) + pow(y_val, 2));
-			res_dir = atan2(y_val, x_val) * 180/pi;
-			
-			//if resulting direction is < 0, negate by adding 180
-			if (res_dir < 0) res_dir += 180;
-			dir.at<float>(i, j) = res_dir;
+	float temp;
+	int x, y;
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			x = (i == 0 || i == rows - 1) ? 0 : input_data.at<unsigned char>(i+1, j) - input_data.at<unsigned char>(i-1, j);
+			y = (j == 0 || j == cols - 1) ? 0 : input_data.at<unsigned char>(i, j+1) - input_data.at<unsigned char>(i, j-1);
+
+			mag.at<float>(i, j) = sqrt(x * x + y * y);
+			temp = atan2(y, x) * 180 / M_PI;
+			if (temp < 0) temp += 180;
+			dir.at<float>(i, j) = temp;
 		}
 	}
+
 }
 
 
@@ -179,6 +141,10 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
 
 int main() {
 
+	clock_t start, end;
+	double time_elapsed_grad, time_elapsed_bin, time_elapsed_norm;
+	int runs = 100;
+
 	/************************************************************
 	*					1. Reading image data
 	*************************************************************/
@@ -189,58 +155,44 @@ int main() {
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
 	short block_size = 8;
 
-	//pad image to make it divisible by block_size
-	Mat image_pad;
-	copyMakeBorder(image, image_pad, 
-		0, block_size - image.rows % block_size, 
-		0, block_size - image.cols % block_size, 
-		BORDER_CONSTANT, Scalar(0));
+	//resize image to be divisible by block_size
+	resize(image,
+		image,
+		Size(image.cols - (image.cols % block_size),
+			image.rows - (image.rows % block_size))
+	);
 
-	image_pad.convertTo(image_pad, CV_32FC1);
+	Size img_size = image.size();
 
-	Size img_size = image_pad.size();
+	cout << "Image dimensions" << endl;
+	cout << image.rows << "\t" << image.cols << "\n" << endl;
 
-	cout << image_pad.rows << "\t" << image_pad.cols << "\n" << endl;
-
-	
-	/************************************************************
-	*					2. Computing Gradients
-	*************************************************************/
-
-	Mat x_grad = Mat(img_size, CV_32FC1);
-	Mat y_grad = Mat(img_size, CV_32FC1);
-
-	compute_gradients(x_grad, y_grad, image_pad);
-
-	cout << "x" << endl;
-	displayBlock(x_grad);
-
-	cout << "y" << endl;
-	displayBlock(y_grad);
 
 	/************************************************************
-	*					3. Computing Polar values
+	*					2-3. Computing Polar values
 	*************************************************************/
 
 	Mat mag = Mat(img_size, CV_32FC1); 
 	Mat dir = Mat(img_size, CV_32FC1);
 
-	compute_polar(mag, dir, x_grad, y_grad);
+	start = clock();
 
-	cout << "mag" << endl;
-	displayBlock(mag);
+	for (int i = 0; i < runs; i++)
+		compute_gradients(mag, dir, image, image.rows, image.cols);
 
+	end = clock();
 
-	cout << "dir" << endl;
-	displayBlock(dir);
+	time_elapsed_grad = ((double)(end - start)) * 1e6 / CLOCKS_PER_SEC / runs;
+
+	cout << "Average time elapsed (in us): " << time_elapsed_grad << endl;
 
 	/************************************************************
 	*			4. Binning Gradients to Angle bins
 	*************************************************************/
 
 	// Determines how many blocks are needed for the image
-	const int ncell_rows = image_pad.rows / 8;
-	const int ncell_cols = image_pad.cols / 8;
+	const int ncell_rows = img_size.height / 8;
+	const int ncell_cols = img_size.width / 8;
 	const int nBin_size = ncell_rows * ncell_cols;
 	
 	// initialize 9x1 bins corresponding to each block on the image
@@ -252,52 +204,45 @@ int main() {
 		}
 	}
 
-	bin_gradients(HOGBin, mag, dir);
+	start = clock();
+	
+	for (int i = 0; i < runs; i++)
+		bin_gradients(HOGBin, mag, dir);
+	
+	end = clock();
 
-	cout << "Bins" << endl;
-	for (int i = 0; i < 1; i++) {
-		for (int j = 0; j < 1; j++) {
-			for (int k = 0; k < 9; k++)
-				cout << HOGBin[i][j][k] << "\t";
-			cout << endl;
-		}
-		cout << endl;
-	}
-	cout << endl;
+	time_elapsed_bin = ((double)(end - start)) * 1e6 / CLOCKS_PER_SEC / runs;
 
+	cout << "Average time elapsed (in us): " << time_elapsed_bin << endl;
 
 	/************************************************************
 	*			5. Normalize Gradients in a 16x16 cell
 	*************************************************************/
 
 	// Determine number of features
-	
 	const int features = (ncell_rows-1) * (ncell_cols-1) * 36;
 	double *HOGFeatures = new double[features];
 
-	normalizeGradients(HOGFeatures, HOGBin, ncell_rows, ncell_cols, features);
+	start = clock();
+
+	for (int i = 0; i < runs; i++)
+		normalizeGradients(HOGFeatures, HOGBin, ncell_rows, ncell_cols, features);
+
+	end = clock();
+
+	time_elapsed_norm = ((double)(end - start)) * 1e6 / CLOCKS_PER_SEC / runs;
+
+	cout << "Average time elapsed (in us): " << time_elapsed_norm << endl;
 	
 	/************************************************************
 	*			6.		Visualizing HOG Features
 	*************************************************************/
 
-	
-	HOGDescriptor hg = HOGDescriptor(img_size, Size(16, 16), Size(8, 8), Size(8, 8), 9);
-	Mat cv_grad = Mat(img_size, CV_32FC2), cv_angle = Mat(img_size, CV_8UC2);
-
-	Mat test = Mat(img_size, CV_8UC1);
-	image_pad.convertTo(test, CV_8UC1);
-	hg.computeGradient(test, cv_grad, cv_angle);
-
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			cout << cv_angle.at<int>(i, j) << "\t";
-		}
-		cout << endl;
-	}
-	cout << endl;
 
 
+
+
+	cout << "Total Average time for computation (in us): " << time_elapsed_grad + time_elapsed_bin + time_elapsed_norm << endl;
 
 	// Free memory used for calculating HOG features
 	for (int i = 0; i < ncell_rows; ++i){
