@@ -71,7 +71,7 @@ void compute_gradients(Mat& mag, Mat& dir, Mat& input_mat) {
 	cudaMallocManaged(&mag_out, BYTE_SIZE);
 	cudaMallocManaged(&dir_out, BYTE_SIZE);
 
-	cout << "Copying data to input...\n" << endl;
+	//cout << "Copying data to input...\n" << endl;
 
 	//copy matrix data to unified memory
 	memcpy(input, input_mat.ptr(), BYTE_SIZE);
@@ -80,24 +80,24 @@ void compute_gradients(Mat& mag, Mat& dir, Mat& input_mat) {
 	const int numThreads = 1024;
 	const int numBlocks = (ARRAY_SIZE + numThreads - 1) / numThreads;
 
-	cout << "Launching kernel...\n" << endl;
+	//cout << "Launching kernel...\n" << endl;
 
 	//launch kernel
 	//todo: parallelize kernel executions to improve performance
 	computegrad_device <<< numBlocks, numThreads >>> (mag_out, dir_out, input, input_mat.rows, input_mat.cols);
 	cudaDeviceSynchronize();
 
-	cout << "Copying mag output into matrices...\n" << endl;
+	//cout << "Copying mag output into matrices...\n" << endl;
 
 	//copy unified memory into gradient matrices
 	memcpy(mag.ptr(), mag_out, BYTE_SIZE);
 
-	cout << "Copying mag output into matrices...\n" << endl;
+	//cout << "Copying mag output into matrices...\n" << endl;
 
 	//copy unified memory into gradient matrices
 	memcpy(dir.ptr(), dir_out, BYTE_SIZE);
 
-	cout << "Freeing memory...\n" << endl;
+	//cout << "Freeing memory...\n" << endl;
 
 	//free memory allocated
 	cudaFree(mag_out);
@@ -116,8 +116,8 @@ void group_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows, i
 	//indexing method: i = block row	j = block col	bin_key = bin position
 	//access by doing temp[(i*cols*9) + (j*9) + bin_key]
 
-	int idx_i = blockIdx.x * blockDim.x + threadIdx.x;
-	int idx_j = blockIdx.y * blockDim.y + threadIdx.y;
+	const int idx_i = blockIdx.x * blockDim.x + (threadIdx.x/8);
+	const int idx_j = blockIdx.y * blockDim.y + (threadIdx.y/8);
 
 	const int stride_x = blockDim.x * gridDim.x;
 	const int stride_y = blockDim.y * gridDim.y;
@@ -126,16 +126,13 @@ void group_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows, i
 	int local_idx_x = threadIdx.x % 8;
 	int local_idx_y = threadIdx.y % 8;
 
-	//corresponding HOG block bins
-	int subblock_i = threadIdx.x / 8;
-	int subblock_j = threadIdx.y / 8;
 
 	//initialize HOG feature blocks in shared memory
 	//assumes thread blocks of at least 8x8 size
-	if (threadIdx.x % 8 > 3 && threadIdx.y % 8 > 3) {
+	if (threadIdx.x % 8 < 3 && threadIdx.y % 8 < 3) {
 		for (int i = idx_i; i < rows; i += stride_x) {
 			for (int j = idx_j; j < cols; j += stride_y) {
-					temp[((i + subblock_i) * cols * 9) + ((j + subblock_j) * 9) + (local_idx_x * 3 + local_idx_y)] = 0;
+					temp[(i * cols * 9) + (j * 9) + (local_idx_x * 3 + local_idx_y)] = 0;
 			}
 		}
 	}
@@ -165,19 +162,19 @@ void group_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows, i
 			bin_value_hi = fabs(bin_value_lo - mag);
 
 			//add value to bin
-			temp[(i * cols * 9 + subblock_i) + (j * 9 + subblock_j) + bin_key] += bin_value_lo;
+			temp[(i * cols * 9) + (j * 9) + bin_key] += bin_value_lo;
 			__syncthreads();
-			temp[(i * cols * 9 + subblock_i) + (j * 9 + subblock_j) + ((bin_key + 1) % 9)] += bin_value_hi;
+			temp[(i * cols * 9) + (j * 9) + ((bin_key + 1) % 9)] += bin_value_hi;
 			__syncthreads();
 		}
 	}
 
 	//writeback to global memory
-	if (threadIdx.x % 8 > 3 && threadIdx.y % 8 > 3) {
+	if (threadIdx.x % 8 < 3 && threadIdx.y % 8 < 3) {
 		for (int i = idx_i; i < rows; i += stride_x) {
 			for (int j = idx_j; j < cols; j += stride_y) {
-				hog_out[((i + subblock_i) * cols * 9) + ((j + subblock_j) * 9) + (local_idx_x * 3 + local_idx_y)] = 
-					temp[((i + subblock_i) * cols * 9) + ((j + subblock_j) * 9) + (local_idx_x * 3 + local_idx_y)];
+				hog_out[(i * cols * 9) + (j * 9) + (local_idx_x * 3 + local_idx_y)] = 
+					temp[(i * cols * 9) + (j * 9) + (local_idx_x * 3 + local_idx_y)];
 			}
 		}
 	}
@@ -192,9 +189,8 @@ void cuda_compute_bins(int n, double *HOG_features, Mat& mag, Mat& dir) {
 	cudaMallocManaged(&mag_in, BYTE_SIZE);
 	cudaMallocManaged(&dir_in, BYTE_SIZE);
 
-	memcpy(mag_in, mag.ptr(), BYTE_SIZE);
-	memcpy(dir_in, dir.ptr(), BYTE_SIZE);
-
+	memcpy(mag_in, (float*) mag.ptr(), BYTE_SIZE);
+	memcpy(dir_in, (float*) dir.ptr(), BYTE_SIZE);
 
 	//todo
 	const int BLOCK_SIZE = 32;
@@ -204,7 +200,7 @@ void cuda_compute_bins(int n, double *HOG_features, Mat& mag, Mat& dir) {
 
 	//rows * cols / 8 = number of blocks
 	//9 bins per block, 4 bytes per double elem
-	group_bin <<< numBlocks, numThreads , mag.rows * mag.cols / 8 * 9 * sizeof(double) >>> (n, HOG_features, mag_in, dir_in, mag.rows, mag.cols);
+	group_bin <<< dimGrid, dimBlock, n * sizeof(double) >>> (n, HOG_features, mag_in, dir_in, mag.rows, mag.cols);
 	cudaDeviceSynchronize();
 
 	cudaFree(mag_in);
@@ -236,11 +232,6 @@ int main() {
 
 	Size img_size = image.size();
 
-	const int hog_size = (image.rows / 8 - 1) * (image.cols / 8 - 1) * 36;
-	float* hog_features;
-
-	cudaMallocManaged(&hog_features, hog_size * sizeof(float));
-
 	cout << image.rows << "\t" << image.cols << "\n" << endl;
 
 
@@ -260,12 +251,15 @@ int main() {
 
 	//initialize HOG Features as flattened 3d array
 	//indexing: HOG_features[(i * cols * 9) + (j * 9) + k]
-	int numFeatures = mag.rows * mag.cols / 8 * 9;
+	int numFeatures = mag.rows * mag.cols / 64 * 9;
 	double* HOG_features = (double*)malloc(sizeof(double) * numFeatures);
 
 	//call aux function
 	cuda_compute_bins(numFeatures, HOG_features, mag, dir);
 
+	displayBlock(mag);
+
+	displayBlock(dir);
 
 	cout << "HOG features (Block 1)" << endl;
 	for (int i = 0; i < 9; i++) {
@@ -274,7 +268,6 @@ int main() {
 	cout << endl;
 
 	//todo: normalization (L2 Norm) of resulting gradients
-
 
 
 
