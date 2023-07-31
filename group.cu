@@ -31,24 +31,29 @@ void displayBlock(Mat img) {
 __global__
 void computegrad_device(float *mag, float *dir, unsigned char* input, int rows, int cols) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	const int stride = blockDim.x * gridDim.x;
-	
+	int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+	const int stride_i = blockDim.x * gridDim.x;
+	const int stride_j = blockDim.y * gridDim.y;
+
 	float x, y;
 	float temp;
 	//compute x gradients
-	for (i; i < rows * cols; i += stride) {
-		//do not include first and last cols (borders)
-		y = (i % cols == 0 || i % cols == cols - 1) ?
-			0 : input[i + 1] - input[i - 1];
+	for (i; i < rows; i += stride_i) {
+		for (j; j < cols; j += stride_j) {
+			//do not include first and last cols (borders)
+			y = (j == 0 || j == cols - 1) ?
+				0 : input[(i * cols) + j+1] - input[(i * cols) + j-1];
 
-		//do not include first and last rows (borders)
-		x = (i < cols || i >= (rows-1) * cols) ?  
-			0 : input[i + cols] - input[i - cols];
+			//do not include first and last rows (borders)
+			x = (i == 0 || i == rows - 1) ?
+				0 : input[((i + 1) * cols) + j] - input[((i - 1) * cols) + j];
 
-		mag[i] = sqrt(x * x + y * y);
-		temp = atan2(y, x) * 180 / M_PI;
-		if (temp < 0) temp += 180;
-		dir[i] = temp;
+			mag[(i * cols) + j] = sqrt(x * x + y * y);
+			temp = atan2(y, x) * 180 / M_PI;
+			if (temp < 0) temp += 180;
+			dir[(i * cols) + j] = temp;
+		}
 	}
 }
 
@@ -77,13 +82,14 @@ void compute_gradients(Mat& mag, Mat& dir, Mat& input_mat) {
 	memcpy(input, input_mat.ptr(), BYTE_SIZE);
 
 	//initialize kernel data
-	const int numThreads = 1024;
-	const int numBlocks = (ARRAY_SIZE + numThreads - 1) / numThreads;
+	const int BLOCK_SIZE = 32;
+	dim3 threadBlock(BLOCK_SIZE, BLOCK_SIZE);	//32*32 (1024 threads)
+	dim3 dimBlock(input_mat.rows / BLOCK_SIZE, input_mat.cols / BLOCK_SIZE);	//
 
 	//cout << "Launching kernel...\n" << endl;
 
 	//launch kernel
-	computegrad_device <<< numBlocks, numThreads >>> (mag_out, dir_out, input, input_mat.rows, input_mat.cols);
+	computegrad_device <<< dimBlock, threadBlock >>> (mag_out, dir_out, input, input_mat.rows, input_mat.cols);
 	cudaDeviceSynchronize();
 
 	//cout << "Copying mag output into matrices...\n" << endl;
@@ -122,28 +128,26 @@ void group_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows, i
 		int row_idx = i / cols;
 		int col_idx = i % cols;
 
-			mag = mag_in[i];
-			angle = dir_in[i];
+		mag = mag_in[i];
+		angle = dir_in[i];
 
-			bin_key = angle / 20;
-			bin_key %= 9;
+		bin_key = angle / 20;
+		bin_key %= 9;
 			
-			//special case for 180 - move value to 0 bin (bins wrap around)
-			if (angle == 180.0) {
-				angle = 0;
-			}
+		//special case for 180 - move value to 0 bin (bins wrap around)
+		if (angle == 180.0) {
+			angle = 0;
+		}
 
-			//equally divide contributions to different angle bins
-			bin_value_lo = ((bins[bin_key + 1] - angle) / 20.0) * mag;
-			bin_value_hi = fabs(bin_value_lo - mag);
+		//equally divide contributions to different angle bins
+		bin_value_lo = ((bins[bin_key + 1] - angle) / 20.0) * mag;
+		bin_value_hi = fabs(bin_value_lo - mag);
 
-			//add value to bin
-			atomicAdd(&hog_out[(row_idx / 8 * cols * 9) + (col_idx / 8 * 9) + bin_key], bin_value_lo);
-			atomicAdd(&hog_out[(row_idx / 8 * cols * 9) + (col_idx / 8 * 9) + ((bin_key+1)%9)], bin_value_lo);
+		//add value to bin
+		atomicAdd(&hog_out[(row_idx / 8 * cols * 9) + (col_idx / 8 * 9) + bin_key], bin_value_lo);
+		atomicAdd(&hog_out[(row_idx / 8 * cols * 9) + (col_idx / 8 * 9) + ((bin_key+1)%9)], bin_value_lo);
 	}
 }
-
-
 
 void cuda_compute_bins(int n, double *HOG_features, Mat& mag, Mat& dir) {
 	const int BYTE_SIZE = mag.rows * mag.cols * sizeof(float);
@@ -160,6 +164,7 @@ void cuda_compute_bins(int n, double *HOG_features, Mat& mag, Mat& dir) {
 	const int numThreads = 1024;
 	const int numBlocks = (ARRAY_SIZE + numThreads - 1) / numThreads;
 
+	//improvement: use 2D thread blocks for better synchronization
 	group_bin <<< numBlocks, numThreads >>> (n, HOG_features, mag_in, dir_in, mag.rows, mag.cols);
 	cudaDeviceSynchronize();
 
@@ -232,7 +237,7 @@ int main() {
 
 	cudaFree(HOG_features);
 
-	// cout << dir ;
+	// cout << dir;
 	//todo: display HOG
 
 	return 0;
