@@ -155,17 +155,19 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
     // Allocate and copy the flattened HOGBin data to the device
     double *d_flatHOGBin;
    	const int binDataSize = rows * cols * 9 * sizeof(double);
-    cudaMalloc((void **)&d_flatHOGBin, binDataSize);
+    cudaMallocManaged((void **)&d_flatHOGBin, binDataSize);
     cudaMemcpy(d_flatHOGBin, flatHOGBin, binDataSize, cudaMemcpyHostToDevice);
 
     // Allocate device memory for HOGFeatures
     double *d_HOGFeatures;
     const int featureSize = num_elem * 36 * sizeof(double);
-    cudaMalloc((void **)&d_HOGFeatures, featureSize);
+    cudaMallocManaged((void **)&d_HOGFeatures, featureSize);
 
     // Define the block and grid dimensions for the kernel
-    int threadsPerBlock = 1024;
-    int blocksPerGrid = (num_elem + threadsPerBlock - 1) / threadsPerBlock;
+    const int numThreads = 1024;
+    const int int numBlocks = (num_elem + threadsPerBlock - 1) / threadsPerBlock;
+
+	cout << "Launching kernels...\n" << endl;
 
     // Launch the kernel to copy bin data
     copyBinData<<<blocksPerGrid, threadsPerBlock>>>(d_HOGFeatures, d_flattenedHOGBin, cols, num_elem);
@@ -175,6 +177,9 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
 
     // Launch the kernel for L2 normalization on each 1x36 feature
     L2Normalization(d_HOGFeatures, num_elem);
+	
+ 	// Wait for all threads to finish
+	cudaDeviceSynchronize();
 
     // Copy the results back from device to host
     cudaMemcpy(HOGFeatures, d_HOGFeatures, featureSize, cudaMemcpyDeviceToHost);
