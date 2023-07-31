@@ -109,49 +109,84 @@ void L2Normalization(double *HOGFeatures, int n){
 	double norm;
 	double temp;
 
-	for (i; i < n; i+= 36 ){
+	for (i; i < n; i+= stride ){
 		norm = 0
-		for (j; j < 36; j+=stride){
+		for (j; j < 36; j++){
 			temp = HOGFeatures[i+j];
 			norm += temp * temp;
 		}
 		norm = sqrt(norm);
 
-		for (j; j<36; j+=stride){
+		for (j; j<36; j++){
 			HOGFeatures[i+j] /=sqrt(norm*norm + 1e-6*1e-6)
 		}
 	}
 }
 
-__global__
-void normalizeGradients(double *HOGFeatures,double ***HOGBin, int rows, int cols, int num_elem ){
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int j = blockIdx.y * blockDim.y + threadIdx.y;
-	int k = blockIdx.z * blockDim.z + threadIdx.z;
+__global__ 
+void copyBinData(double *HOGFeatures, double *HOGBin, int cols, int num_elem) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-	const int stride_i = blockDim.x * gridDim.x;
-	const int stride_j = blockDim.y * gridDim.y;
-	const int stride_k = blockDim.z * gridDim.z;
+    if (i < num_elem) {
+        int n = idx / (cols - 1);
+        int m = idx % (cols - 1);
+        int feature_index = idx * 36;
 
-	int feature_index = 0;
-
-	for (i; i <rows-1;i+=stride_i){
-		for(j; j<cols-1;j+=stride_j){
-			for(k; k<9;k+=stride_k){
-				HOGFeatures[feature_index + k] = HOGBin[i][j][k];
-				HOGFeatures[feature_index + 9 + k] = HOGBin[i][j+1][k];
-				HOGFeatures[feature_index + 18 + k] = HOGBin[i+1][j][k];
-				HOGFeatures[feature_index + 27 + k] = HOGBin[i+1][j+1][k];
-			}
-
-			feature_index +=36;
-		}
-	}
-
-	L2Normalization(HOGFeatures, num_elem);
+        for (int j = 0; j < 9; j++) {
+            HOGFeatures[feature_index + j] = HOGBin[(n * cols + m) * 9 + j];
+            HOGFeatures[feature_index + 9 + j] = HOGBin[(n * cols + m + 1) * 9 + j];
+            HOGFeatures[feature_index + 18 + j] = HOGBin[((n + 1) * cols + m) * 9 + j];
+            HOGFeatures[feature_index + 27 + j] = HOGBin[((n + 1) * cols + m + 1) * 9 + j];
+        }
+    }
 }
 
-void cuda_normalize_grad()
+void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols, int num_elem) {
+    // Flatten HOGBin data into a 1D array for easier copying to the device
+    double *flatHOGBin = new double[rows * cols * 9];
+    for (int n = 0; n < rows; n++) {
+        for (int m = 0; m < cols; m++) {
+            for (int i = 0; i < 9; i++) {
+                flatHOGBin[(n * cols + m) * 9 + i] = HOGBin[n][m][i];
+            }
+        }
+    }
+
+    // Allocate and copy the flattened HOGBin data to the device
+    double *d_flatHOGBin;
+   	const int binDataSize = rows * cols * 9 * sizeof(double);
+    cudaMalloc((void **)&d_flatHOGBin, binDataSize);
+    cudaMemcpy(d_flatHOGBin, flatHOGBin, binDataSize, cudaMemcpyHostToDevice);
+
+    // Allocate device memory for HOGFeatures
+    double *d_HOGFeatures;
+    const int featureSize = num_elem * 36 * sizeof(double);
+    cudaMalloc((void **)&d_HOGFeatures, featureSize);
+
+    // Define the block and grid dimensions for the kernel
+    int threadsPerBlock = 1024;
+    int blocksPerGrid = (num_elem + threadsPerBlock - 1) / threadsPerBlock;
+
+    // Launch the kernel to copy bin data
+    copyBinData<<<blocksPerGrid, threadsPerBlock>>>(d_HOGFeatures, d_flattenedHOGBin, cols, num_elem);
+
+    // Free the allocated host memory for flattenedHOGBin
+    delete[] flattenedHOGBin;
+
+    // Wait for all threads to finish
+    cudaDeviceSynchronize();
+
+    // Launch the kernel for L2 normalization on each 1x36 feature
+    L2Normalization(d_HOGFeatures, num_elem);
+
+    // Copy the results back from device to host
+    cudaMemcpy(HOGFeatures, d_HOGFeatures, featureSize, cudaMemcpyDeviceToHost);
+
+    // Free the allocated device memory
+    cudaFree(d_flattenedHOGBin);
+    cudaFree(d_HOGFeatures);
+}
+
 
 /**********************************************
 *				MAIN PROGRAM
