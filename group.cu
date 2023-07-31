@@ -170,9 +170,6 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
     // Launch the kernel to copy bin data
     copyBinData<<<blocksPerGrid, threadsPerBlock>>>(d_HOGFeatures, d_flattenedHOGBin, cols, num_elem);
 
-    // Free the allocated host memory for flattenedHOGBin
-    delete[] flattenedHOGBin;
-
     // Wait for all threads to finish
     cudaDeviceSynchronize();
 
