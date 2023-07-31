@@ -83,7 +83,6 @@ void compute_gradients(Mat& mag, Mat& dir, Mat& input_mat) {
 	//cout << "Launching kernel...\n" << endl;
 
 	//launch kernel
-	//todo: parallelize kernel executions to improve performance
 	computegrad_device <<< numBlocks, numThreads >>> (mag_out, dir_out, input, input_mat.rows, input_mat.cols);
 	cudaDeviceSynchronize();
 
@@ -107,47 +106,24 @@ void compute_gradients(Mat& mag, Mat& dir, Mat& input_mat) {
 
 __global__
 void group_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows, int cols) {
-	extern __shared__ double temp[]; //globally shared to properly synchronize bin values
-	//flattened 3D array
-	//see: https://stackoverflow.com/questions/22110663/how-is-a-three-dimensional-array-stored-in-memory
-	// https://en.wikibooks.org/wiki/C_Programming/Common_practices
-	//temp is arranged by elem-last; ie. temp[0-8] is for block[0][0], temp[9-17] is block[0][1], etc.
-	//blocks are arranged in row-major
-	//indexing method: i = block row	j = block col	bin_key = bin position
-	//access by doing temp[(i*cols*9) + (j*9) + bin_key]
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	const int stride = blockDim.x * gridDim.x;
 
-	const int idx_i = blockIdx.x * blockDim.x + (threadIdx.x/8);
-	const int idx_j = blockIdx.y * blockDim.y + (threadIdx.y/8);
-
-	const int stride_x = blockDim.x * gridDim.x;
-	const int stride_y = blockDim.y * gridDim.y;
-
-	//local block index
-	int local_idx_x = threadIdx.x % 8;
-	int local_idx_y = threadIdx.y % 8;
-
-
-	//initialize HOG feature blocks in shared memory
-	//assumes thread blocks of at least 8x8 size
-	if (threadIdx.x % 8 < 3 && threadIdx.y % 8 < 3) {
-		for (int i = idx_i; i < rows; i += stride_x) {
-			for (int j = idx_j; j < cols; j += stride_y) {
-					temp[(i * cols * 9) + (j * 9) + (local_idx_x * 3 + local_idx_y)] = 0;
-			}
-		}
-	}
-	__syncthreads();
-
+	int row_idx;
+	int col_idx;
 
 	int bin_key;
-	double mag, angle, bin_value_lo, bin_value_hi;
+	float mag, angle;
+	double bin_value_lo, bin_value_hi;
 	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
 
 	//add into shared memory
-	for (int i = idx_i; i < rows; i += stride_x) {
-		for (int j = idx_j; j < cols; j += stride_y) {
-			mag = mag_in[(i * cols) + j];
-			angle = dir_in[(i * cols) + j];
+	for (i; i < rows * cols; i += stride) {
+		int row_idx = i / cols;
+		int col_idx = i % cols;
+
+			mag = mag_in[i];
+			angle = dir_in[i];
 
 			bin_key = angle / 20;
 			bin_key %= 9;
@@ -162,24 +138,12 @@ void group_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows, i
 			bin_value_hi = fabs(bin_value_lo - mag);
 
 			//add value to bin
-			temp[(i * cols * 9) + (j * 9) + bin_key] += bin_value_lo;
-			__syncthreads();
-			temp[(i * cols * 9) + (j * 9) + ((bin_key + 1) % 9)] += bin_value_hi;
-			__syncthreads();
-		}
+			atomicAdd(&hog_out[(row_idx / 8 * cols * 9) + (col_idx / 8 * 9) + bin_key], bin_value_lo);
+			atomicAdd(&hog_out[(row_idx / 8 * cols * 9) + (col_idx / 8 * 9) + ((bin_key+1)%9)], bin_value_lo);
 	}
-
-	//writeback to global memory
-	if (threadIdx.x % 8 < 3 && threadIdx.y % 8 < 3) {
-		for (int i = idx_i; i < rows; i += stride_x) {
-			for (int j = idx_j; j < cols; j += stride_y) {
-				hog_out[(i * cols * 9) + (j * 9) + (local_idx_x * 3 + local_idx_y)] = 
-					temp[(i * cols * 9) + (j * 9) + (local_idx_x * 3 + local_idx_y)];
-			}
-		}
-	}
-
 }
+
+
 
 void cuda_compute_bins(int n, double *HOG_features, Mat& mag, Mat& dir) {
 	const int BYTE_SIZE = mag.rows * mag.cols * sizeof(float);
@@ -192,15 +156,11 @@ void cuda_compute_bins(int n, double *HOG_features, Mat& mag, Mat& dir) {
 	memcpy(mag_in, (float*) mag.ptr(), BYTE_SIZE);
 	memcpy(dir_in, (float*) dir.ptr(), BYTE_SIZE);
 
-	//todo
-	const int BLOCK_SIZE = 32;
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);	//32*32 block (1024 threads)
-	dim3 dimGrid(mag.rows / BLOCK_SIZE, mag.cols / BLOCK_SIZE); //create enough blocks to complete array
-	
 
-	//rows * cols / 8 = number of blocks
-	//9 bins per block, 4 bytes per double elem
-	group_bin <<< dimGrid, dimBlock, n * sizeof(double) >>> (n, HOG_features, mag_in, dir_in, mag.rows, mag.cols);
+	const int numThreads = 1024;
+	const int numBlocks = (ARRAY_SIZE + numThreads - 1) / numThreads;
+
+	group_bin <<< numBlocks, numThreads >>> (n, HOG_features, mag_in, dir_in, mag.rows, mag.cols);
 	cudaDeviceSynchronize();
 
 	cudaFree(mag_in);
@@ -246,22 +206,23 @@ int main() {
 	//call aux function
 	compute_gradients(mag, dir, image);
 
+	displayBlock(mag);
+	displayBlock(dir);
 
 	//todo: 2x2 blocking of histogram coefficients (into 1x36 coeffs)
 
 	//initialize HOG Features as flattened 3d array
 	//indexing: HOG_features[(i * cols * 9) + (j * 9) + k]
 	int numFeatures = mag.rows * mag.cols / 64 * 9;
-	double* HOG_features = (double*)malloc(sizeof(double) * numFeatures);
+	double* HOG_features;
+
+	cudaMallocManaged(&HOG_features, numFeatures * sizeof(double));
+	cudaMemset(HOG_features, 0, numFeatures * sizeof(double));
 
 	//call aux function
 	cuda_compute_bins(numFeatures, HOG_features, mag, dir);
 
-	displayBlock(mag);
-
-	displayBlock(dir);
-
-	cout << "HOG features (Block 1)" << endl;
+	cout << "HOG" << endl;
 	for (int i = 0; i < 9; i++) {
 		cout << HOG_features[i] << "\t";
 	}
@@ -269,7 +230,7 @@ int main() {
 
 	//todo: normalization (L2 Norm) of resulting gradients
 
-
+	cudaFree(HOG_features);
 
 	// cout << dir ;
 	//todo: display HOG
