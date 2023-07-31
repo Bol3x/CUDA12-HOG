@@ -99,6 +99,60 @@ void cuda_hog_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows
 	}
 }
 
+__device__
+void L2Normalization(double *HOGFeatures, int n){
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+	const int stride = blockDim.x * gridDim.x;
+
+	double norm;
+	double temp;
+
+	for (i; i < n; i+= 36 ){
+		norm = 0
+		for (j; j < 36; j+=stride){
+			temp = HOGFeatures[i+j];
+			norm += temp * temp;
+		}
+		norm = sqrt(norm);
+
+		for (j; j<36; j+=stride){
+			HOGFeatures[i+j] /=sqrt(norm*norm + 1e-6*1e-6)
+		}
+	}
+}
+
+__global__
+void normalizeGradients(double *HOGFeatures,double ***HOGBin, int rows, int cols, int num_elem ){
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	int j = blockIdx.y * blockDim.y + threadIdx.y;
+	int k = blockIdx.z * blockDim.z + threadIdx.z;
+
+	const int stride_i = blockDim.x * gridDim.x;
+	const int stride_j = blockDim.y * gridDim.y;
+	const int stride_k = blockDim.z * gridDim.z;
+
+	int feature_index = 0;
+
+	for (i; i <rows-1;i+=stride_i){
+		for(j; j<cols-1;j+=stride_j){
+			for(k; k<9;k+=stride_k){
+				HOGFeatures[feature_index + k] = HOGBin[i][j][k];
+				HOGFeatures[feature_index + 9 + k] = HOGBin[i][j+1][k];
+				HOGFeatures[feature_index + 18 + k] = HOGBin[i+1][j][k];
+				HOGFeatures[feature_index + 27 + k] = HOGBin[i+1][j+1][k];
+			}
+
+			feature_index +=36;
+		}
+	}
+
+	L2Normalization(HOGFeatures, num_elem);
+}
+
+void cuda_normalize_grad()
+
 /**********************************************
 *				MAIN PROGRAM
 ***********************************************/
