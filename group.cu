@@ -165,12 +165,12 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
 
     // Define the block and grid dimensions for the kernel
     const int numThreads = 1024;
-    const int int numBlocks = (num_elem + threadsPerBlock - 1) / threadsPerBlock;
+    const int int numBlocks = (num_elem + numThreads - 1) / numThreads;
 
 	cout << "Launching kernels...\n" << endl;
 
     // Launch the kernel to copy bin data
-    copyBinData<<<blocksPerGrid, threadsPerBlock>>>(d_HOGFeatures, d_flattenedHOGBin, cols, num_elem);
+    copyBinData<<<numBlocks, numThreads>>>(d_HOGFeatures, d_flattenedHOGBin, cols, num_elem);
 
     // Wait for all threads to finish
     cudaDeviceSynchronize();
@@ -185,7 +185,7 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
     cudaMemcpy(HOGFeatures, d_HOGFeatures, featureSize, cudaMemcpyDeviceToHost);
 
     // Free the allocated device memory
-    cudaFree(d_flattenedHOGBin);
+    cudaFree(d_flatHOGBin);
     cudaFree(d_HOGFeatures);
 }
 
