@@ -99,28 +99,36 @@ void cuda_hog_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows
 	}
 }
 
-__device__
-void L2Normalization(double *HOGFeatures, int n){
+__global__
+void l2Normalizatiom(double *HOGFeatures, int num_elem){
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-	const int stride = blockDim.x * gridDim.x;
+	if (i < num_elem){
+		__shared__ double data[1024];
+		int feature_index = i * 36
 
-	double norm;
-	double temp;
+		data[threadIdx.x]=0;
+		 for (int i = 0; i < 36; i++) {
+            double val = HOGFeatures[feature_index + i];
+            data[threadIdx.x] += val * val;
+        }
 
-	for (i; i < n; i+= stride ){
-		norm = 0
-		for (j; j < 36; j++){
-			temp = HOGFeatures[i+j];
-			norm += temp * temp;
+		__syncthreads();
+
+		for(int stride = blockDim.x/2 ; stride >0 ; stride >>=1){
+			if (threadIdx.x < stride){
+				data[threadIdx.x] += data[threadIdx.x + stride];
+			}
+			__syncthreads();
 		}
-		norm = sqrt(norm);
 
-		for (j; j<36; j++){
-			HOGFeatures[i+j] /=sqrt(norm*norm + 1e-6*1e-6)
+		double norm = sqrt(data[0]);
+		for(int i=0; i<36; i++){
+			HOGFeatures[feature_index + i ] /= (norm + 1e-6);
 		}
+		
 	}
+
 }
 
 __global__ 
@@ -176,13 +184,16 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
     cudaDeviceSynchronize();
 
     // Launch the kernel for L2 normalization on each 1x36 feature
-    L2Normalization(d_HOGFeatures, num_elem);
+    L2Normalization<<numBlocks, numThreads>>(d_HOGFeatures, num_elem);
 	
  	// Wait for all threads to finish
 	cudaDeviceSynchronize();
 
     // Copy the results back from device to host
     cudaMemcpy(HOGFeatures, d_HOGFeatures, featureSize, cudaMemcpyDeviceToHost);
+
+
+	cout << "Freeing memory...\n" << endl;
 
     // Free the allocated device memory
     cudaFree(d_flatHOGBin);
