@@ -6,11 +6,9 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/opencv.hpp>
-#include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
 #include <cmath>
-#include <cassert>
 #include <time.h>
 
 using namespace cv;
@@ -93,111 +91,59 @@ void cuda_hog_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows
 			bin_value_hi = fabs(bin_value_lo - mag);
 
 			//add value to bin
-			atomicAdd(&hog_out[(x / 8 * cols * 9) + (y / 8 * 9) + bin_key], bin_value_lo);
-			atomicAdd(&hog_out[(x / 8 * cols * 9) + (y / 8 * 9) + (bin_key + 1) % 9], bin_value_hi);
+			int out_idx = (x / 8 * (cols / 8) + y / 8) * 9;
+			atomicAdd(&hog_out[out_idx + bin_key], bin_value_lo);
+			atomicAdd(&hog_out[out_idx + (bin_key + 1) % 9], bin_value_hi);
+		}
+	}
+}
+
+
+/*
+*	copy hog bin data into a long sequence to simplify 
+*/
+__global__
+void copyBinData(double* normHOG, double* HOGBin, int rows, int cols, int n) {
+	int t_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	for (t_idx; t_idx < n; t_idx += blockDim.x * gridDim.x) {
+		int idx = t_idx / 9;
+		int elem = t_idx % 9;
+
+		int i = idx / cols;
+		int j = idx % cols;
+		int feature_index = idx * 36;
+		if (i < rows - 1 && j < cols - 1) {
+			normHOG[feature_index + elem] = HOGBin[(i * cols + j) * 9 + elem];
+			normHOG[feature_index + 9 + elem] = HOGBin[(i * cols + j + 1) * 9 + elem];
+			normHOG[feature_index + 18 + elem] = HOGBin[((i + 1) * cols + j) * 9 + elem];
+			normHOG[feature_index + 27 + elem] = HOGBin[((i + 1) * cols + j + 1) * 9 + elem];
 		}
 	}
 }
 
 __global__
-void l2Normalization(double *HOGFeatures, int num_elem){
+void L2norm(double *input, double* norms, int n) {
+
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
 
-	if (i < num_elem){
-		__shared__ double data[1024];
-		int feature_index = i * 36;
+	for (i; i < n; i += stride) {
+		int norm_idx = i / 36;
 
-		data[threadIdx.x]=0;
-		 for (int i = 0; i < 36; i++) {
-            double val = HOGFeatures[feature_index + i];
-            data[threadIdx.x] += val * val;
-        }
+		if (i % 36 == 0) {
+			double sum = 0;
 
+			for (int j = 0; j < 36; j++) {
+				sum += (input[i + j] * input[i + j]);
+			}
+			
+			norms[norm_idx] = sum;
+		}
 		__syncthreads();
 
-		for(int stride = blockDim.x/2 ; stride >0 ; stride >>=1){
-			if (threadIdx.x < stride){
-				data[threadIdx.x] += data[threadIdx.x + stride];
-			}
-			__syncthreads();
-		}
-
-		double norm = sqrt(data[0]);
-		for(int i=0; i<36; i++){
-			HOGFeatures[feature_index + i ] /= (norm + 1e-6);
-		}
-		
+		input[i] /= sqrt(norms[norm_idx] + 1e-6 * 1e-6);
 	}
-
-}
-
-__global__ 
-void copyBinData(double *HOGFeatures, double *HOGBin, int cols, int num_elem) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (i < num_elem) {
-        int n = i / (cols - 1);
-        int m = i % (cols - 1);
-        int feature_index = i * 36;
-
-        for (int j = 0; j < 9; j++) {
-            HOGFeatures[feature_index + j] = HOGBin[(n * cols + m) * 9 + j];
-            HOGFeatures[feature_index + 9 + j] = HOGBin[(n * cols + m + 1) * 9 + j];
-            HOGFeatures[feature_index + 18 + j] = HOGBin[((n + 1) * cols + m) * 9 + j];
-            HOGFeatures[feature_index + 27 + j] = HOGBin[((n + 1) * cols + m + 1) * 9 + j];
-        }
-    }
-}
-
-void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int cols, int num_elem) {
-    // Flatten HOGBin data into a 1D array for easier copying to the device
-    double *flatHOGBin = new double[rows * cols * 9];
-    for (int n = 0; n < rows; n++) {
-        for (int m = 0; m < cols; m++) {
-            for (int i = 0; i < 9; i++) {
-                flatHOGBin[(n * cols + m) * 9 + i] = HOGBin[n][m][i];
-            }
-        }
-    }
-
-    // Allocate and copy the flattened HOGBin data to the device
-    double *d_flatHOGBin;
-   	const int binDataSize = rows * cols * 9 * sizeof(double);
-    cudaMallocManaged((void **)&d_flatHOGBin, binDataSize);
-    cudaMemcpy(d_flatHOGBin, flatHOGBin, binDataSize, cudaMemcpyHostToDevice);
-
-    // Allocate device memory for HOGFeatures
-    double *d_HOGFeatures;
-    const int featureSize = num_elem * 36 * sizeof(double);
-    cudaMallocManaged((void **)&d_HOGFeatures, featureSize);
-
-    // Define the block and grid dimensions for the kernel
-    const int numThreads = 1024;
-    const int numBlocks = (num_elem + numThreads - 1) / numThreads;
-
-	cout << "Launching kernels...\n" << endl;
-
-    // Launch the kernel to copy bin data
-    copyBinData<<<numBlocks, numThreads>>>(d_HOGFeatures, d_flatHOGBin, cols, num_elem);
-
-    // Wait for all threads to finish
-    cudaDeviceSynchronize();
-
-    // Launch the kernel for L2 normalization on each 1x36 feature
-	l2Normalization<<<numBlocks, numThreads>>>(d_HOGFeatures, num_elem);
-	
- 	// Wait for all threads to finish
-	cudaDeviceSynchronize();
-
-    // Copy the results back from device to host
-    cudaMemcpy(HOGFeatures, d_HOGFeatures, featureSize, cudaMemcpyDeviceToHost);
-
-
-	cout << "Freeing memory...\n" << endl;
-
-    // Free the allocated device memory
-    cudaFree(d_flatHOGBin);
-    cudaFree(d_HOGFeatures);
 }
 
 
@@ -207,14 +153,14 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
 int main() {
 
 	clock_t start, end;
-	double time_elapsed_grad, time_elapsed_bin;
+	double time_elapsed_grad = 0, time_elapsed_bin = 0;
 	int runs = 100;
 
 	/************************************************************
 	*					1. Reading image data
 	*************************************************************/
-	
-	string image_path = "D:/Github_Repositories/CUDA12-HOG/input_img/dog.jpg";
+
+	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_60.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -254,21 +200,19 @@ int main() {
 	cudaMallocManaged(&mag, float_byte_size);
 	cudaMallocManaged(&dir, float_byte_size);
 
-	start = clock();
 	for (int i = 0; i < runs; i++) {
-		computegrad_device << < dimBlock, threadBlock >> > (mag, dir, img_data, rows, cols);
-		cudaDeviceSynchronize();
-	}
-	end = clock();
 
-	time_elapsed_grad = ((double)(end - start)) * 1e6 / CLOCKS_PER_SEC / runs;
+		start = clock();
+		computegrad_device <<< dimBlock, threadBlock >>>(mag, dir, img_data, rows, cols);
+		cudaDeviceSynchronize();
+		end = clock();
+
+		time_elapsed_grad += ((double)(end - start));
+	}
+
+	time_elapsed_grad = time_elapsed_grad * 1e6 / CLOCKS_PER_SEC / runs;
 
 	cout << "Average time elapsed (in us): " << time_elapsed_grad << endl;
-
-	displayBlock(mag, cols);
-	
-	displayBlock(dir, cols);
-
 
 	/************************************************************
 	*					4.  HOG Features
@@ -283,27 +227,60 @@ int main() {
 	cudaMemset(HOG_features, 0, numFeatures * sizeof(double));
 
 	//call aux function
-	start = clock();
 	for (int i = 0; i < runs; i++) {
-		cuda_hog_bin << < dimBlock, threadBlock >> > (numFeatures, HOG_features, mag, dir, rows, cols);
-		cudaDeviceSynchronize();
-	}
-	end = clock();
+		cudaMemset(HOG_features, 0, numFeatures * sizeof(double));
 
-	time_elapsed_bin = ((double)(end - start)) * 1e6 / CLOCKS_PER_SEC / runs;
+		start = clock();
+		cuda_hog_bin <<< dimBlock, threadBlock >>>(numFeatures, HOG_features, mag, dir, rows, cols);
+		cudaDeviceSynchronize();
+		end = clock();
+
+		time_elapsed_bin += ((double)(end - start));
+	}
+
+	time_elapsed_bin = time_elapsed_bin * 1e6 / CLOCKS_PER_SEC / runs;
+
+	cout << numFeatures << endl;
 
 	cout << "Average time elapsed (in us): " << time_elapsed_bin << endl;
 
 
-	cout << "HOG Bins (Block 1)" << endl;
-	for (int i = 0; i < 9; i++) {
-		cout << HOG_features[i] << "\t";
-	}
-	cout << endl;
-
+	//displayBlock(mag, cols);
+	//displayBlock(dir, cols);
 
 	//todo: normalization (L2 Norm) of resulting gradients
 
+	int block_rows = rows / 8;
+	int block_cols = cols / 8;
+	int norm_elems = (block_rows - 1) * (block_cols - 1) * 36;
+
+	double* normHOG;
+	cudaMallocManaged(&normHOG, norm_elems * sizeof(double));
+
+	// Define the block and grid dimensions for the kernel
+	const int numThreads = 1024;
+	const int numBlocks = (norm_elems + numThreads - 1) / numThreads;
+
+
+	// Launch the kernel to linearize bin data
+	copyBinData <<< numBlocks / 4, numThreads >>> (normHOG, HOG_features, block_rows, block_cols, norm_elems);
+	cudaDeviceSynchronize();
+
+	double* norm_coeff;
+	cudaMallocManaged(&norm_coeff, sizeof(double) * (norm_elems / 36));
+
+	// Launch the kernel for L2 normalization on each 1x36 feature
+	L2norm <<< numBlocks, numThreads >>> (normHOG, norm_coeff, norm_elems);
+	cudaDeviceSynchronize();
+
+	cout << "HOG norm" << endl;
+	for (int i = 0; i < 36; i++) {
+		cout << normHOG[i] << "\t";
+	}
+	cout << endl;
+
+	cudaFree(norm_coeff);
+	cudaFree(normHOG);
 	cudaFree(HOG_features);
 
 	// cout << dir;
