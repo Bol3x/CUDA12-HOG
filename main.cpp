@@ -163,6 +163,71 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
 	
 }
 
+void visualizeHOG(const cv::Mat& input_image,double * HOGFeatures, int ncell_rows, int ncell_cols) {
+    // Create a blank image with the same size as the input image
+    cv::Mat hog_visualization = input_image.clone();
+
+    // Calculate the size of each cell in the visualization
+    int cell_width = hog_visualization.cols / ncell_cols;
+    int cell_height = hog_visualization.rows / ncell_rows;
+
+    // Draw HOG visualization
+    int bin_idx = 0;
+    for (int r = 0; r < ncell_rows; ++r) {
+        for (int c = 0; c < ncell_cols; ++c) {
+            double feature_value = HOGFeatures[bin_idx]; // Get the HOG feature value for the cell
+
+            // grayscale
+            cv::Scalar color(255 * feature_value, 255 * feature_value, 255 * feature_value);
+
+            // Draw a rectangle on the HOG visualization image to represent the cell
+            cv::rectangle(hog_visualization,
+                          cv::Point(c * cell_width, r * cell_height),
+                          cv::Point((c + 1) * cell_width, (r + 1) * cell_height),
+                          color, -1);
+
+            bin_idx++; // Move to the next bin
+        }
+    }
+
+    // Overlay the HOG visualization on top of the input image
+    double alpha = 0.1; // You can adjust the alpha value to control the transparency of the overlay
+    cv::addWeighted(hog_visualization, alpha, input_image, 1.0 - alpha, 0.0, hog_visualization);
+
+    // Show the input image with the HOG visualization overlay
+    cv::imshow("HOG Visualization", hog_visualization);
+    cv::waitKey(0);
+}
+
+// void visualizeHOG(double* HOGFeatures,  int ncell_rows, int ncell_cols) {
+//     // Image size for visualization
+//     const int img_width = ncell_cols * 10; // Each cell will be 10 pixels wide
+//     const int img_height = ncell_rows * 10; // Each cell will be 10 pixels high
+
+//     // Create a blank image
+//     cv::Mat hog_image(img_height, img_width, CV_8UC3, cv::Scalar(255, 255, 255));
+
+//     // Draw HOG visualization
+//     int bin_idx = 0;
+//     for (int r = 0; r < ncell_rows; ++r) {
+//         for (int c = 0; c < ncell_cols; ++c) {
+//             float feature_value = HOGFeatures[bin_idx]; // Get the HOG feature value for the cell
+
+//             // Use color maps or grayscale to represent the gradient direction and magnitude.
+//             // For simplicity, I'll just use grayscale here.
+//             cv::Scalar color(255 * feature_value, 255 * feature_value, 255 * feature_value);
+//             cv::rectangle(hog_image, cv::Point(c * 10, r * 10), cv::Point((c + 1) * 10, (r + 1) * 10), color, -1);
+
+//             bin_idx++; // Move to the next bin
+//         }
+//     }
+
+//     // Show the HOG visualization
+//     cv::imshow("HOG Visualization", hog_image);
+//     cv::waitKey(0);
+// }
+
+
 
 int main() {
 
@@ -170,12 +235,13 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:/Users/ryana/OneDrive/Desktop/dog.jpg";
+	string image_path = "D:/Github_Repositories/CUDA12-HOG/input_img/dog.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
 	short block_size = 8;
 
+	imshow("Image", image);
 	//pad image to make it divisible by block_size
 	Mat image_pad;
 	copyMakeBorder(image, image_pad, 
@@ -264,7 +330,7 @@ int main() {
 	for(int i = 0; i < features; ++i){
 		cout << HOGFeatures[i] << "\n";
 	}
-	
+	visualizeHOG(image_pad,HOGFeatures, ncell_rows, ncell_cols);
 	// Free memory
 	for (int i = 0; i < ncell_rows; ++i){
 		for(int j = 0; j < ncell_cols; ++j){
