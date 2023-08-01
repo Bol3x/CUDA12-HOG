@@ -100,12 +100,12 @@ void cuda_hog_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows
 }
 
 __global__
-void l2Normalizatiom(double *HOGFeatures, int num_elem){
+void l2Normalization(double *HOGFeatures, int num_elem){
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (i < num_elem){
 		__shared__ double data[1024];
-		int feature_index = i * 36
+		int feature_index = i * 36;
 
 		data[threadIdx.x]=0;
 		 for (int i = 0; i < 36; i++) {
@@ -136,9 +136,9 @@ void copyBinData(double *HOGFeatures, double *HOGBin, int cols, int num_elem) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i < num_elem) {
-        int n = idx / (cols - 1);
-        int m = idx % (cols - 1);
-        int feature_index = idx * 36;
+        int n = i / (cols - 1);
+        int m = i % (cols - 1);
+        int feature_index = i * 36;
 
         for (int j = 0; j < 9; j++) {
             HOGFeatures[feature_index + j] = HOGBin[(n * cols + m) * 9 + j];
@@ -184,7 +184,7 @@ void normalizeGradients(double *HOGFeatures, double ***HOGBin, int rows, int col
     cudaDeviceSynchronize();
 
     // Launch the kernel for L2 normalization on each 1x36 feature
-    L2Normalization<<numBlocks, numThreads>>(d_HOGFeatures, num_elem);
+	l2Normalization<<<numBlocks, numThreads>>>(d_HOGFeatures, num_elem);
 	
  	// Wait for all threads to finish
 	cudaDeviceSynchronize();
@@ -213,8 +213,8 @@ int main() {
 	/************************************************************
 	*					1. Reading image data
 	*************************************************************/
-
-	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_60.jpg";
+	
+	string image_path = "D:/Github_Repositories/CUDA12-HOG/input_img/dog.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
