@@ -166,7 +166,7 @@ int main() {
 	return 0;
 }
 
-//----------Useful References -------------------
+//----------Useful References --------------------
 //https://learnopencv.com/histogram-of-oriented-gradients/
 //https://docs.opencv.org/4.x/d6/d6d/tutorial_mat_the_basic_image_container.html
 //https://www.analyticsvidhya.com/blog/2019/09/feature-engineering-images-introduction-hog-feature-descriptor/#h-step-4-calculate-histogram-of-gradients-in-8x8-cells-9x1
