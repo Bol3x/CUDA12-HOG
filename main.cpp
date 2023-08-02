@@ -1,5 +1,6 @@
 #define _USE_MATH_DEFINES
 
+#include "hog_visualize.h"
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
