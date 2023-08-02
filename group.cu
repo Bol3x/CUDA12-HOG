@@ -100,35 +100,32 @@ void cuda_hog_bin(int n, double* hog_out, float* mag_in, float* dir_in, int rows
 
 
 /*
-*	copy hog bin data into a long sequence to simplify 
+*	get 2x2 HOG blocks
 */
 __global__
 void copyBinData(double* normHOG, double* HOGBin, int rows, int cols, int n) {
 	int t_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	for (t_idx; t_idx < n; t_idx += blockDim.x * gridDim.x) {
-		int idx = t_idx / 9;
-		int elem = t_idx % 9;
+		int idx = t_idx / 36;
+		int elem = t_idx % 36;
 
 		int i = idx / cols;
 		int j = idx % cols;
-		int feature_index = idx * 36;
 		if (i < rows - 1 && j < cols - 1) {
-			normHOG[feature_index + elem] = HOGBin[(i * cols + j) * 9 + elem];
-			normHOG[feature_index + 9 + elem] = HOGBin[(i * cols + j + 1) * 9 + elem];
-			normHOG[feature_index + 18 + elem] = HOGBin[((i + 1) * cols + j) * 9 + elem];
-			normHOG[feature_index + 27 + elem] = HOGBin[((i + 1) * cols + j + 1) * 9 + elem];
+			normHOG[t_idx] = (elem < 18) ? 
+				HOGBin[(i * cols + j) * 9 + elem] :			//upper row of 2x2 block
+				HOGBin[((i + 1) * cols + j) * 9 + (elem-18)];	//lower row of 2x2 block
 		}
 	}
 }
 
 __global__
-void L2norm(double *input, double* norms, int n) {
-
+void L2norm(double *input, double* norms, int num_norms) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 
-	for (i; i < n; i += stride) {
+	for (i; i < num_norms; i += stride) {
 		int norm_idx = i / 36;
 
 		if (i % 36 == 0) {
@@ -152,9 +149,11 @@ void L2norm(double *input, double* norms, int n) {
 ***********************************************/
 int main() {
 
+	//testing variables
 	clock_t start, end;
-	double time_elapsed_grad = 0, time_elapsed_bin = 0;
+	double time_elapsed_grad = 0, time_elapsed_bin = 0, time_elapsed_norm = 0;
 	int runs = 100;
+
 
 	/************************************************************
 	*					1. Reading image data
@@ -180,13 +179,15 @@ int main() {
 	cout << "Image dimensions: " << endl;
 	cout << image.rows << "x" << image.cols << "\n" << endl;
 
-	const int BLOCK_SIZE = 32;
-	dim3 threadBlock(BLOCK_SIZE, BLOCK_SIZE);	//32*32 (1024 threads)
-	dim3 dimBlock(rows / BLOCK_SIZE, cols / BLOCK_SIZE);
-
+	//transfer image data to unified memory
 	unsigned char* img_data;
 	cudaMallocManaged(&img_data, img_size.area() * sizeof(char));
 	memcpy(img_data, image.ptr(), img_size.area() * sizeof(char));
+
+	//initialize kernel parameters
+	const int BLOCK_SIZE = 32;
+	dim3 threadBlock(BLOCK_SIZE, BLOCK_SIZE);	//32*32 (1024 threads)
+	dim3 dimBlock(rows / BLOCK_SIZE, cols / BLOCK_SIZE);
 
 
 	/************************************************************
@@ -211,8 +212,6 @@ int main() {
 	}
 
 	time_elapsed_grad = time_elapsed_grad * 1e6 / CLOCKS_PER_SEC / runs;
-
-	cout << "Average time elapsed (in us): " << time_elapsed_grad << endl;
 
 	/************************************************************
 	*					4.  HOG Features
@@ -240,15 +239,9 @@ int main() {
 
 	time_elapsed_bin = time_elapsed_bin * 1e6 / CLOCKS_PER_SEC / runs;
 
-	cout << numFeatures << endl;
-
-	cout << "Average time elapsed (in us): " << time_elapsed_bin << endl;
-
-
-	//displayBlock(mag, cols);
-	//displayBlock(dir, cols);
-
-	//todo: normalization (L2 Norm) of resulting gradients
+	/************************************************************
+	*					5.  Normalization
+	*************************************************************/
 
 	int block_rows = rows / 8;
 	int block_cols = cols / 8;
@@ -261,20 +254,40 @@ int main() {
 	const int numThreads = 1024;
 	const int numBlocks = (norm_elems + numThreads - 1) / numThreads;
 
-
-	// Launch the kernel to linearize bin data
-	copyBinData <<< numBlocks / 4, numThreads >>> (normHOG, HOG_features, block_rows, block_cols, norm_elems);
-	cudaDeviceSynchronize();
-
 	double* norm_coeff;
 	cudaMallocManaged(&norm_coeff, sizeof(double) * (norm_elems / 36));
 
-	// Launch the kernel for L2 normalization on each 1x36 feature
-	L2norm <<< numBlocks, numThreads >>> (normHOG, norm_coeff, norm_elems);
-	cudaDeviceSynchronize();
+
+		for (int i = 0; i < runs; i++) {
+
+			start = clock();
+
+			// Launch the kernel to linearize bin data
+			copyBinData <<< numBlocks, numThreads >>> (normHOG, HOG_features, block_rows, block_cols, norm_elems);
+			cudaDeviceSynchronize();
+
+			// Launch the kernel for L2 normalization on each 1x36 feature
+			L2norm <<< numBlocks, numThreads >>> (normHOG, norm_coeff, norm_elems);
+			cudaDeviceSynchronize();
+
+			end = clock();
+
+			time_elapsed_norm += ((double)(end - start));
+		}
+
+	time_elapsed_norm = time_elapsed_norm * 1e6 / CLOCKS_PER_SEC / runs;
+
+
+	/************************************************************
+	*					6. HOG Visualization
+	*************************************************************/
+
+	cout << "Grad: Average time elapsed (in us): " << time_elapsed_grad << endl;
+	cout << "Bin: Average time elapsed (in us): " << time_elapsed_bin << endl;
+	cout << "Norm: Average time elapsed (in us): " << time_elapsed_norm << endl;
 
 	cout << "HOG norm" << endl;
-	for (int i = 0; i < 36; i++) {
+	for (int i = 36; i < 36 + 36; i++) {
 		cout << normHOG[i] << "\t";
 	}
 	cout << endl;
@@ -282,9 +295,6 @@ int main() {
 	cudaFree(norm_coeff);
 	cudaFree(normHOG);
 	cudaFree(HOG_features);
-
-	// cout << dir;
-	//todo: display HOG
 
 	return 0;
 }
