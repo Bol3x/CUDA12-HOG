@@ -150,7 +150,7 @@ int main() {
 	}
 	cout << endl;
 
-	visualizeHOG(image, HOG_features, HOGBin, ncell_rows, ncell_cols,9);
+	visualizeHOG(image, HOGBin, ncell_rows, ncell_cols);
 
 	// Free memory
 	for (int i = 0; i < ncell_rows; ++i) {

@@ -10,7 +10,6 @@ include_directories( ${OPENCV_INCLUDE_DIRS} )
 
 add_executable(CUDA12-HOG 
     main.cpp
-    hog_visualize.cpp
     hog_visualize.h)
 
 target_link_libraries( CUDA12-HOG ${OpenCV_LIBS} )
