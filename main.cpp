@@ -1,6 +1,5 @@
 #define _USE_MATH_DEFINES
 
-#include "hog_visualize.h"
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
@@ -15,6 +14,13 @@ using namespace cv;
 using namespace std;
 
 
+
+    // Show the input image with the HOG visualization overlay
+    cv::imshow("HOG Visualization", hog_visualization);
+    cv::waitKey(0);
+}
+
+>>>>>>> 4475bfa20932878c09d9c7086711c6a1fd1606ca
 void get_HOG_features(double* HOG_features, Mat img, double*** HOGBin, int rows, int cols) {
 
 	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
@@ -91,7 +97,7 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "D:/Github_Repositories/CUDA12-HOG/input_img/dog.jpg";
+	string image_path = "C:\\Users\\admin\\Desktop\\dataset-iiit-pet-master\\images\\shiba_inu_45.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);

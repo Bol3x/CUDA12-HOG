@@ -1,6 +1,5 @@
 #include "hog_visualize.h"
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc.hpp>
+
 
 
 void visualizeHOG(const Mat& input_image,  double* HOGFeatures,  double ***HOGBin, int ncell_rows, int ncell_cols, int num_bins) {
@@ -46,7 +45,6 @@ void visualizeHOG(const Mat& input_image,  double* HOGFeatures,  double ***HOGBi
 
 			for(int i = 0; i < 4; ++i){
 				// Calculate the arrow endpoint position based on the dominant gradient direction
-				// int arrow_length = 5; // Length of the arrow
 
 				// add
 				float currRad = max_bin_idx[i] * 3.14 / num_bins;
@@ -56,14 +54,10 @@ void visualizeHOG(const Mat& input_image,  double* HOGFeatures,  double ***HOGBi
                                           // to see the lines better
 
 				// compute line coordinates
-				// int arrow_length = static_cast<int>(HOGFeatures[feature_idx] * 30); // Scale the arrow length based on magnitude
                 float x1 = center_x - dirVecX * dominant_direction[i] * scale;
                 float y1 = center_y - dirVecY * dominant_direction[i] * scale;
                 float x2 = center_x + dirVecX * dominant_direction[i] * scale;
                 float y2 = center_y + dirVecY * dominant_direction[i] * scale;
-
-				// double arrow_end_x = center_x + arrow_length * cos(max_bin_idx[i] * 3.14 / num_bins);
-				// double arrow_end_y = center_y - arrow_length * sin(max_bin_idx[i] * 3.14 / num_bins);
 
 				// Draw the arrowed line to represent the dominant gradient direction
 				line(hog_visualization,
