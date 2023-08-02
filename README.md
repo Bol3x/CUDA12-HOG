@@ -10,10 +10,10 @@
 
 The following algorithms were parallelized using CUDA:
 1. Computation of Gradients
-2. Orientation of binning 
+2. Binning of Gradient Orientations from 8x8 pixel blocks
 3. Normalization of the Gradients
 
-//todo explain the parallelization
+Computing the gradients can be done per-element, as each magnitude and angle can be computed independent of other threads. Distributing these magnitudes into respective orientation bins can be done per-element as well, but will require synchronization between memory writes to prevent race conditions. Finally, L2 normalization of the orientation bins into a long vector sequence can be done after the binning process is completed. This is performed with a 2x2 block, each cell consisting of the 9 orientation bins obtained from the 8x8 pixel blocks, resulting in a (rows / 8 - 1) * (cols / 8 - 1) * 36 element vector.
 
 ## b.) Execution time comparison between sequential and parallel
 ### System Specifications of device used 
