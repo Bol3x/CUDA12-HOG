@@ -15,8 +15,6 @@ using namespace cv;
 using namespace std;
 
 
-
-
 void get_HOG_features(double* HOG_features, Mat img, double*** HOGBin, int rows, int cols) {
 
 	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
@@ -93,7 +91,7 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:\\Users\\admin\\Desktop\\dataset-iiit-pet-master\\images\\shiba_inu_60.jpg";
+	string image_path = "D:/Github_Repositories/CUDA12-HOG/input_img/dog.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);

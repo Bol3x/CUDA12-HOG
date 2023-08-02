@@ -2,10 +2,10 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "Debug/CUDA12-HOG.exe"
+			"path" : "MinSizeRel/CUDA12-HOG.exe"
 		},
 		{
-			"path" : "Debug/CUDA12-HOG.pdb"
+			"path" : "MinSizeRel/CUDA12-HOG.pdb"
 		}
 	],
 	"backtrace" : 1,
@@ -28,13 +28,13 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 10,
+				"line" : 11,
 				"parent" : 0
 			},
 			{
 				"command" : 1,
 				"file" : 0,
-				"line" : 12,
+				"line" : 16,
 				"parent" : 0
 			}
 		]
@@ -45,7 +45,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "/DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -MDd"
+					"fragment" : "/DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O1 /Ob1 /DNDEBUG -MD"
 				}
 			],
 			"includes" : 
@@ -59,7 +59,8 @@
 			"language" : "CXX",
 			"sourceIndexes" : 
 			[
-				0
+				0,
+				1
 			]
 		}
 	],
@@ -75,91 +76,91 @@
 		"commandFragments" : 
 		[
 			{
-				"fragment" : "/DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -MDd",
+				"fragment" : "/DWIN32 /D_WINDOWS /W3 /GR /EHsc /MD /O1 /Ob1 /DNDEBUG -MD",
 				"role" : "flags"
 			},
 			{
-				"fragment" : "/machine:x64 /debug /INCREMENTAL /subsystem:console",
+				"fragment" : "/machine:x64 /INCREMENTAL:NO /subsystem:console",
 				"role" : "flags"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
 				"backtrace" : 2,
-				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470d.lib",
+				"fragment" : "D:\\opencv\\build\\x64\\vc16\\lib\\opencv_world470.lib",
 				"role" : "libraries"
 			},
 			{
@@ -182,7 +183,15 @@
 			"name" : "Source Files",
 			"sourceIndexes" : 
 			[
-				0
+				0,
+				1
+			]
+		},
+		{
+			"name" : "Header Files",
+			"sourceIndexes" : 
+			[
+				2
 			]
 		}
 	],
@@ -193,6 +202,17 @@
 			"compileGroupIndex" : 0,
 			"path" : "main.cpp",
 			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "hog_visualize.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"path" : "hog_visualize.h",
+			"sourceGroupIndex" : 1
 		}
 	],
 	"type" : "EXECUTABLE"

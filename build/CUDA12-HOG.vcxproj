@@ -318,6 +318,8 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="D:\Github_Repositories\CUDA12-HOG\main.cpp" />
+    <ClCompile Include="D:\Github_Repositories\CUDA12-HOG\hog_visualize.cpp" />
+    <ClInclude Include="D:\Github_Repositories\CUDA12-HOG\hog_visualize.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="D:\Github_Repositories\CUDA12-HOG\build\ZERO_CHECK.vcxproj">

@@ -18,17 +18,17 @@
 	ProcessorCacheSize="96"
 	NumberOfLogicalCPU="8"
 	NumberOfPhysicalCPU="4"
-	TotalVirtualMemory="18882"
+	TotalVirtualMemory="21998"
 	TotalPhysicalMemory="6082"
 	LogicalProcessorsPerPhysical="2"
 	ProcessorClockFrequency="2295"
 	>
 	<Testing>
-		<StartDateTime>Aug 02 14:39 Malay Peninsula Standard Time</StartDateTime>
-		<StartTestTime>1690958387</StartTestTime>
+		<StartDateTime>Aug 02 22:49 Malay Peninsula Standard Time</StartDateTime>
+		<StartTestTime>1690987742</StartTestTime>
 		<TestList/>
-		<EndDateTime>Aug 02 14:39 Malay Peninsula Standard Time</EndDateTime>
-		<EndTestTime>1690958387</EndTestTime>
+		<EndDateTime>Aug 02 22:49 Malay Peninsula Standard Time</EndDateTime>
+		<EndTestTime>1690987742</EndTestTime>
 		<ElapsedMinutes>0</ElapsedMinutes>
 	</Testing>
 </Site>

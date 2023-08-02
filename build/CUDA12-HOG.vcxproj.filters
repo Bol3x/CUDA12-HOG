@@ -4,11 +4,22 @@
     <ClCompile Include="D:\Github_Repositories\CUDA12-HOG\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Github_Repositories\CUDA12-HOG\hog_visualize.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="D:\Github_Repositories\CUDA12-HOG\hog_visualize.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="D:\Github_Repositories\CUDA12-HOG\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{9E23374A-0A22-3D9A-92D3-B391F6DC2FB8}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files">
       <UniqueIdentifier>{5B0521A5-2028-3098-9013-E26ADEAC5202}</UniqueIdentifier>
     </Filter>
