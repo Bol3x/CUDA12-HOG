@@ -1,5 +1,6 @@
 #define _USE_MATH_DEFINES
 
+#include "hog_visualize.h"
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
@@ -13,69 +14,8 @@
 using namespace cv;
 using namespace std;
 
-void visualizeHOG(const cv::Mat& input_image,double * HOGFeatures, int ncell_rows, int ncell_cols) {
-    // Create a blank image with the same size as the input image
-    cv::Mat hog_visualization = input_image.clone();
 
-    // Calculate the size of each cell in the visualization
-    int cell_width = hog_visualization.cols / ncell_cols;
-    int cell_height = hog_visualization.rows / ncell_rows;
 
-    // Draw HOG visualization
-    int bin_idx = 0;
-    for (int r = 0; r < ncell_rows; ++r) {
-        for (int c = 0; c < ncell_cols; ++c) {
-            double feature_value = HOGFeatures[bin_idx]; // Get the HOG feature value for the cell
-
-            // grayscale
-            cv::Scalar color(255 * feature_value, 255 * feature_value, 255 * feature_value);
-
-            // Draw a rectangle on the HOG visualization image to represent the cell
-            cv::rectangle(hog_visualization,
-                          cv::Point(c * cell_width, r * cell_height),
-                          cv::Point((c + 1) * cell_width, (r + 1) * cell_height),
-                          color, -1);
-
-            bin_idx++; // Move to the next bin
-        }
-    }
-
-    // Overlay the HOG visualization on top of the input image
-    double alpha = 0.1; // You can adjust the alpha value to control the transparency of the overlay
-    cv::addWeighted(hog_visualization, alpha, input_image, 1.0 - alpha, 0.0, hog_visualization);
-
-    // Show the input image with the HOG visualization overlay
-    cv::imshow("HOG Visualization", hog_visualization);
-    cv::waitKey(0);
-}
-
-// void visualizeHOG(double* HOGFeatures,  int ncell_rows, int ncell_cols) {
-//     // Image size for visualization
-//     const int img_width = ncell_cols * 10; // Each cell will be 10 pixels wide
-//     const int img_height = ncell_rows * 10; // Each cell will be 10 pixels high
-
-//     // Create a blank image
-//     cv::Mat hog_image(img_height, img_width, CV_8UC3, cv::Scalar(255, 255, 255));
-
-//     // Draw HOG visualization
-//     int bin_idx = 0;
-//     for (int r = 0; r < ncell_rows; ++r) {
-//         for (int c = 0; c < ncell_cols; ++c) {
-//             float feature_value = HOGFeatures[bin_idx]; // Get the HOG feature value for the cell
-
-//             // Use color maps or grayscale to represent the gradient direction and magnitude.
-//             // For simplicity, I'll just use grayscale here.
-//             cv::Scalar color(255 * feature_value, 255 * feature_value, 255 * feature_value);
-//             cv::rectangle(hog_image, cv::Point(c * 10, r * 10), cv::Point((c + 1) * 10, (r + 1) * 10), color, -1);
-
-//             bin_idx++; // Move to the next bin
-//         }
-//     }
-
-//     // Show the HOG visualization
-//     cv::imshow("HOG Visualization", hog_image);
-//     cv::waitKey(0);
-// }
 
 void get_HOG_features(double* HOG_features, Mat img, double*** HOGBin, int rows, int cols) {
 
@@ -153,7 +93,7 @@ int main() {
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_60.jpg";
+	string image_path = "C:\\Users\\admin\\Desktop\\dataset-iiit-pet-master\\images\\shiba_inu_60.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -164,7 +104,7 @@ int main() {
 		Size(image.cols - (image.cols % block_size),
 			 image.rows - (image.rows % block_size))
 		);
-
+	imshow("Image", image);
 	Size img_size = image.size();
 
 	// cout << image_pad.rows << "\t" << image_pad.cols << "\n" << endl;
@@ -212,7 +152,7 @@ int main() {
 	}
 	cout << endl;
 
-	visualizeHOG(image, HOG_features, ncell_rows, ncell_cols);
+	visualizeHOG(image, HOG_features, HOGBin, ncell_rows, ncell_cols,9);
 
 	// Free memory
 	for (int i = 0; i < ncell_rows; ++i) {
