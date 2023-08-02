@@ -10,10 +10,15 @@
 
 #include <stdlib.h>
 
+
+/*
+*	compute for the HOG bins of each 8x8 pixel block
+*	first, calculate for the gradients
+*/
 __global__ 
 void compute_bins(double* hog_out, unsigned char *input, int rows, int cols) {
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int j = blockIdx.y * blockDim.y + threadIdx.y;
+	int t_i = blockIdx.x * blockDim.x + threadIdx.x;
+	int t_j = blockIdx.y * blockDim.y + threadIdx.y;
 
 	const int stride_i = blockDim.x * gridDim.x;
 	const int stride_j = blockDim.y * gridDim.y;
@@ -25,9 +30,10 @@ void compute_bins(double* hog_out, unsigned char *input, int rows, int cols) {
 	double mag, dir;
 
 	//compute x gradients
-	for (i; i < rows; i += stride_i) {
-		for (j; j < cols; j += stride_j) 
+	for (int i = t_i; i < rows; i += stride_i) {
+		for (int j = t_j; j < cols; j += stride_j) 
 		{
+			//calculate x and y gradients
 			//do not include first and last rows (borders)
 			x = (i == 0 || i == rows - 1) ?
 				0 : input[((i + 1) * cols) + j] - input[((i - 1) * cols) + j];
@@ -36,11 +42,13 @@ void compute_bins(double* hog_out, unsigned char *input, int rows, int cols) {
 			y = (j == 0 || j == cols - 1) ?
 				0 : input[(i * cols) + j + 1] - input[(i * cols) + j - 1];
 
+
 			mag = sqrt(x * x + y * y);
 			dir = (atan2(y, x) * 180 / M_PI);
 			if (dir < 0) dir += 180;
 			if (dir == 180) dir = 0;
 
+			//determine which bins the magnitude will be added to
 			bin_key = dir / 20;
 			bin_key %= 9;
 
@@ -57,7 +65,7 @@ void compute_bins(double* hog_out, unsigned char *input, int rows, int cols) {
 }
 
 /*
-*	get 2x2 HOG blocks
+*	copy HOG bin data into a 1xn feature vector
 */
 __device__
 void copyBinData(double* normHOG, double* HOGBin, int rows, int cols, int n) {
