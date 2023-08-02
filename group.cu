@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <iostream>
 #include <cmath>
-#include <time.h>
 
 using namespace cv;
 using namespace std;
@@ -26,14 +25,87 @@ void displayBlock(float *arr, int cols) {
 	cout << endl;
 }
 
+
+void get_HOG_features(double* HOG_features, Mat img, double*** HOGBin, int rows, int cols) {
+
+	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
+
+	/***********************************************
+	*					COMPUTE BINS
+	************************************************/
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			double x = (i == 0 || i == rows - 1) ? 0 : img.at<unsigned char>(i + 1, j) - img.at<unsigned char>(i - 1, j);
+			double y = (j == 0 || j == cols - 1) ? 0 : img.at<unsigned char>(i, j + 1) - img.at<unsigned char>(i, j - 1);
+
+			double mag = sqrt(x * x + y * y);
+			double dir = atan2(y, x) * 180 / M_PI;
+			if (dir < 0) dir += 180;
+			if (dir == 180) dir = 0;
+
+			int HOG_row = i / 8;
+			int HOG_col = j / 8;
+
+			int bin_key = dir / 20.0;
+			bin_key %= 9;
+
+			double bin_value_lo = ((bins[bin_key + 1] - dir) / 20.0) * mag;
+			double bin_value_hi = fabs(bin_value_lo - mag);
+
+			HOGBin[HOG_row][HOG_col][bin_key] += bin_value_lo;
+			HOGBin[HOG_row][HOG_col][(bin_key + 1) % 9] += bin_value_hi;
+		}
+	}
+
+	/***********************************************
+	*				NORMALIZE GRADIENTS
+	************************************************/
+
+	const int hog_rows = rows / 8;
+	const int hog_cols = cols / 8;
+
+	const int features = (hog_rows - 1) * (hog_cols - 1) * 36;
+
+	int feature_index = 0;
+	for (int i = 0; i < hog_rows - 1; i++) {
+		for (int j = 0; j < hog_cols - 1; j++) {
+			double sum = 0;
+			
+			#pragma unroll
+			for (int k = 0; k < 9; k++) {
+				double temp0, temp1, temp2, temp3;
+				temp0 = HOGBin[i][j][k];
+				temp1 = HOGBin[i][j + 1][k];
+				temp2 = HOGBin[i + 1][j][k];
+				temp3 = HOGBin[i + 1][j + 1][k];
+				HOG_features[feature_index + k] = temp0;
+				HOG_features[feature_index + 9 + k] = temp1;
+				HOG_features[feature_index + 18 + k] = temp2;
+				HOG_features[feature_index + 27 + k] = temp3;
+
+				sum += (temp0 * temp0) + (temp1 * temp1) + (temp2 * temp2) + (temp3 * temp3);
+			}
+
+			#pragma unroll
+			for (int k = 0; k < 36; k++) {
+				HOG_features[feature_index + k] /= sqrt(sum + (1e-6 * 1e-6));
+			}
+
+			feature_index += 36;
+		}
+	}
+}
+
 /**********************************************
 *				MAIN PROGRAM
 ***********************************************/
 int main() {
 
 	//testing variables
-	clock_t start, end;
-	double time_elapsed_grad = 0, time_elapsed_bin = 0, time_elapsed_norm = 0;
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+	float time_elapsed = 0, time_elapsed_bin = 0, time_elapsed_norm = 0;
 	int runs = 100;
 
 	/************************************************************
@@ -86,15 +158,16 @@ int main() {
 	for (int i = 0; i < runs; i++) {
 		cudaMemset(HOG_features, 0, numFeatures * sizeof(double));
 
-		start = clock();
+		cudaEventRecord(start);
 		compute_bins <<< dimBlock, threadBlock >>> (HOG_features, img_data, rows, cols);
-		cudaDeviceSynchronize();
-		end = clock();
+		cudaEventRecord(end);
 
-		time_elapsed_bin += ((double)(end - start));
+		cudaEventSynchronize(end);
+		cudaEventElapsedTime(&time_elapsed, start, end);
+		time_elapsed_bin += time_elapsed;
 	}
 
-	time_elapsed_bin = (time_elapsed_bin * 1e6 / CLOCKS_PER_SEC) / runs;
+	time_elapsed_bin = time_elapsed_bin * 1e3 / runs;
 
 	/************************************************************
 	*					5.  Normalization
@@ -117,18 +190,18 @@ int main() {
 
 		for (int i = 0; i < runs; i++) {
 
-			start = clock();
-
+			cudaEventRecord(start);
 			// Launch the kernel for L2 normalization on each 1x36 feature
-			L2norm <<< numBlocks, numThreads >>> (normHOG, HOG_features, norm_coeff, block_rows, block_cols, norm_elems);
-			cudaDeviceSynchronize();
+			copyBinData <<< numBlocks, numThreads >>> (normHOG, HOG_features, block_rows, block_cols, norm_elems);
+			L2norm <<< numBlocks, numThreads >>> (normHOG, norm_coeff, norm_elems);
+			cudaEventRecord(end);
 
-			end = clock();
-
-			time_elapsed_norm += ((double)(end - start));
+			cudaEventSynchronize(end);
+			cudaEventElapsedTime(&time_elapsed, start, end);
+			time_elapsed_norm += time_elapsed;
 		}
 
-	time_elapsed_norm = (time_elapsed_norm * 1e6 / CLOCKS_PER_SEC) / runs;
+	time_elapsed_norm = time_elapsed_norm * 1e3 / runs;
 
 
 	/************************************************************
@@ -138,16 +211,54 @@ int main() {
 	cout << "Bin: Average time elapsed (in us): " << time_elapsed_bin << endl;
 	cout << "Norm: Average time elapsed (in us): " << time_elapsed_norm << endl;
 
-	
-
-	cout << "Sample HOG norm (First 36 elements)" << endl;
-	for (int i = 0; i < 36; i++) {
-		cout << normHOG[i] << "\t";
-	}
-	cout << endl;
 
 	cout << "Total Average Time (in us): " << time_elapsed_bin + time_elapsed_norm << endl;
 
+
+	/************************************************************
+	*					7. C Comparison
+	*************************************************************/
+
+	double*** HOGBin = new double** [block_rows];
+	for (int i = 0; i < block_rows; ++i) {
+		HOGBin[i] = new double* [block_cols];
+		for (int j = 0; j < block_cols; ++j) {
+			HOGBin[i][j] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+		}
+	}
+	double* C_HOG_features = (double*)malloc(sizeof(double) * norm_elems);
+
+	get_HOG_features(C_HOG_features, image, HOGBin, rows, cols);
+
+	long err_count = 0;
+	for (int i = 0; i < block_rows; i++) {
+		for (int j = 0; j < block_cols; j++) {
+			for (int k = 0; k < 9; k++) {
+				double cuda = HOG_features[(i*block_cols*9) + (j*9) + k];
+				double c = HOGBin[i][j][k];
+				if (abs(cuda - c) > 0.1) {
+					err_count++;
+					cout << (i * block_cols * 9) + (j * 9) + k << "\t" << cuda << "\t" << c << endl;
+				}
+			}
+		}
+	}
+	cout << "Error Count: " << err_count << endl;
+
+	err_count = 0;
+	for (int i = 0; i < norm_elems; i++) {
+		double cuda = normHOG[i];
+		double c = C_HOG_features[i];
+
+		if (abs(cuda - c) > 0.0001) {
+			err_count++;
+			cout << i << "\t" << cuda << "\t" << c << endl;
+		}
+	}
+
+	cout << "Error Count: " << err_count << endl;
+
+	free(C_HOG_features);
 	cudaFree(norm_coeff);
 	cudaFree(normHOG);
 	cudaFree(HOG_features);
