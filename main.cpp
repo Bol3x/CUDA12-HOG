@@ -227,7 +227,7 @@ void visualizeHOG(const cv::Mat& input_image,double * HOGFeatures, int ncell_row
 //     cv::waitKey(0);
 // }
 
-double *getHOGFeatures(Size img_size, Mat img_pad){
+double *getHOGFeatures(Size img_size, Mat img_pad, double ***HOGBin){
 
 	
 	/************************************************************
@@ -304,14 +304,6 @@ double *getHOGFeatures(Size img_size, Mat img_pad){
 	const int ncell_cols = img_pad.cols / 8;
 	const int nBin_size = ncell_rows * ncell_cols;
 	
-	// initialize 9x1 bins corresponding to each block on the image
-	double ***HOGBin = new double**[ncell_rows];
-	for(int i = 0; i < ncell_rows; ++i){
-		HOGBin[i] = new double* [ncell_cols];
-		for (int j = 0; j < ncell_cols; ++j) {
-			HOGBin[i][j] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-		}
-	}
 
 	/*
 	Initialize the Bins
@@ -435,8 +427,18 @@ int main() {
 
 	const int ncell_rows = image_pad.rows / 8;
 	const int ncell_cols = image_pad.cols / 8;
+
+		// initialize 9x1 bins corresponding to each block on the image
+		double ***HOGBin = new double**[ncell_rows];
+		for(int i = 0; i < ncell_rows; ++i){
+			HOGBin[i] = new double* [ncell_cols];
+			for (int j = 0; j < ncell_cols; ++j) {
+				HOGBin[i][j] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+			}
+		}
+
  
-	double* HOGFeatures = getHOGFeatures(img_size,image_pad);
+	double* HOGFeatures = getHOGFeatures(img_size,image_pad, HOGBin);
 	const int features = (ncell_rows - 1) * (ncell_cols - 1) * 36;
 
 	for(int i = 0; i < features; ++i){
