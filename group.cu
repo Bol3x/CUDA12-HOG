@@ -1,6 +1,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cuda_hog.cuh"
+#include "hog_visualize.h"
 
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -96,6 +97,9 @@ void get_HOG_features(double* HOG_features, Mat img, double*** HOGBin, int rows,
 	}
 }
 
+
+
+
 /**********************************************
 *				MAIN PROGRAM
 ***********************************************/
@@ -106,13 +110,14 @@ int main() {
 	cudaEventCreate(&start);
 	cudaEventCreate(&end);
 	float time_elapsed = 0, time_elapsed_bin = 0, time_elapsed_norm = 0;
+	float time_elapsed_c = 0;
 	int runs = 100;
 
 	/************************************************************
 	*					1. Reading image data
 	*************************************************************/
 
-	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_60.jpg";
+	string image_path = "C:\\Users\\Carlo\\Downloads\\images\\shiba_inu_1.jpg";
 
 	//greyscale for now, we can update later
 	Mat image = imread(image_path, IMREAD_GRAYSCALE);
@@ -131,6 +136,7 @@ int main() {
 
 	cout << "Image dimensions: " << endl;
 	cout << image.rows << "x" << image.cols << "\n" << endl;
+	imshow("Input", image);
 
 	//transfer image data to unified memory
 	unsigned char* img_data;
@@ -211,8 +217,31 @@ int main() {
 	cout << "Bin: Average time elapsed (in us): " << time_elapsed_bin << endl;
 	cout << "Norm: Average time elapsed (in us): " << time_elapsed_norm << endl;
 
+	double*** CUDA_HOG_bin = new double** [block_rows];
+	for (int i = 0; i < block_rows; ++i) {
+		CUDA_HOG_bin[i] = new double* [block_cols];
+		for (int j = 0; j < block_cols; ++j) {
+			CUDA_HOG_bin[i][j] = new double[9] 
+			{
+				HOG_features[(i * block_cols * 9) + (j * 9)],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 1],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 2],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 3],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 4],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 5],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 6],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 7],
+				HOG_features[(i * block_cols * 9) + (j * 9) + 8],
+			};
+		}
+	}
 
-	cout << "Total Average Time (in us): " << time_elapsed_bin + time_elapsed_norm << endl;
+	//visualize HOG features of CUDA output
+	visualizeHOG(image, CUDA_HOG_bin, block_rows, block_cols);
+
+	cout << endl;
+
+	cout << "Total Average Time [CUDA] (in us): " << time_elapsed_bin + time_elapsed_norm << endl;
 
 
 	/************************************************************
@@ -226,29 +255,44 @@ int main() {
 			HOGBin[i][j] = new double[9] {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 		}
 	}
-	double* C_HOG_features = (double*)malloc(sizeof(double) * norm_elems);
+	double* C_normHOG = (double*)malloc(sizeof(double) * norm_elems);
 
-	get_HOG_features(C_HOG_features, image, HOGBin, rows, cols);
 
-	long err_count = 0;
-	for (int i = 0; i < block_rows; i++) {
-		for (int j = 0; j < block_cols; j++) {
-			for (int k = 0; k < 9; k++) {
-				double cuda = HOG_features[(i*block_cols*9) + (j*9) + k];
-				double c = HOGBin[i][j][k];
-				if (abs(cuda - c) > 0.1) {
-					err_count++;
-					cout << (i * block_cols * 9) + (j * 9) + k << "\t" << cuda << "\t" << c << endl;
+	for (int i = 0; i < runs; i++) {
+
+		//reset HOGBin
+		for (int n = 0; n < block_rows; n++) {
+			for (int m = 0; m < block_cols; m++) {
+				for (int l = 0; l < 9; l++) {
+					HOGBin[n][m][l] = 0;
 				}
 			}
 		}
-	}
-	cout << "Error Count: " << err_count << endl;
 
-	err_count = 0;
+		cudaEventRecord(start);
+		get_HOG_features(C_normHOG, image, HOGBin, rows, cols);
+		cudaEventRecord(end);
+
+		cudaEventSynchronize(end);
+		cudaEventElapsedTime(&time_elapsed, start, end);
+		time_elapsed_c += time_elapsed;
+	}
+	time_elapsed_c = time_elapsed_c * 1e3 / runs;
+
+	cout << "Total Average Time [C] (in us): " << time_elapsed_c << endl;
+
+
+	/************************************************************
+	*						8. Error Check
+	*************************************************************/
+
+	//visualize HOG features of C output
+	visualizeHOG(image, HOGBin, block_rows, block_cols);
+
+	long err_count = 0;
 	for (int i = 0; i < norm_elems; i++) {
 		double cuda = normHOG[i];
-		double c = C_HOG_features[i];
+		double c = C_normHOG[i];
 
 		if (abs(cuda - c) > 0.0001) {
 			err_count++;
@@ -256,9 +300,26 @@ int main() {
 		}
 	}
 
-	cout << "Error Count: " << err_count << endl;
+	cout << "Feature Error Count: " << err_count << endl;
 
-	free(C_HOG_features);
+	/************************************************************
+	*						Free Memory
+	*************************************************************/
+
+	// Free memory
+	for (int i = 0; i < block_rows; ++i) {
+		for (int j = 0; j < block_cols; ++j) {
+			delete[] HOGBin[i][j];
+			delete CUDA_HOG_bin[i][j];
+		}
+		delete[] HOGBin[i];
+		delete[] CUDA_HOG_bin[i];
+	}
+	delete[] HOGBin;
+	delete[] CUDA_HOG_bin;
+
+	free(C_normHOG);
+	cudaFree(img_data);
 	cudaFree(norm_coeff);
 	cudaFree(normHOG);
 	cudaFree(HOG_features);
