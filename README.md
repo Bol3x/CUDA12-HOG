@@ -35,13 +35,14 @@ The following algorithms were parallelized using CUDA:
 
 
 ## c.) Detailed Analysis and Discussion of Results
- It is important to note that the testing of the HOG algorithms that was implemented both in C++ and CUDA were both run on the same device with the provided specs in table 1. The algorithm was run 100 times with the execution of both the serial and parallel implementation timed using CUDA’s cudaEvent_t class. To compare between the two, the speedup was calculated by taking the sequential (C++) execution time over the parallelized (CUDA) execution time.
+The testing of the algorithms was implemented both in C++ and CUDA and were both run on the same device with the provided specs in table 1. The algorithm was run 100 times with the execution of both the serial and parallel implementation timed using CUDA’s cudaEvent_t class. To compare between the two, the speedup was calculated by taking the sequential (C++) execution time over the parallelized (CUDA) execution time.
 
- In table 2, the dimensions had a ratio of 2 x 1 wherein the width is double the height. As the dimensions were increased, the speedup also increased, with the speedup at a limit of approximately 15 times over the sequential execution. In table 3, the image utilizes a dimension of square where the width and the height is of equal value. The speedup also increased but it only reached up to 14 times over the sequential execution.
+In table 2, the dimensions had a ratio of 2 x 1 wherein the width is double the height. As the dimensions were increased, the speedup also increased, with the speedup at a limit of approximately 15 times over the sequential execution. In table 3, the image utilizes a dimension of square where the width and the height is of equal value. The speedup also increased and reached up to 14 times over the sequential execution.
 
-The implemented algorithms in CUDA distributed 1 thread per 1-2 pixels whereas fastHOG [2] used 1 thread per 8 pixel column in a block . The implemented algorithms in CUDA employed unified memory to facilitate the displaying of the HOG features.
-
-Some improvements that could be considered in this project is to incorporate shared memory usage since using shared memory is noted to be faster than global memory due to being on-chip. Specifically, employing it in the orientation binning. Furthermore, implementing a reduction sum in the computation of the L2 norm should also be considered to make execution faster, as it was noted that it was implemented in the normalization of the fastHOG[2] algorithm. 
+The implemented algorithms in CUDA distributed 1 thread per 1-2 pixels whereas fastHOG used 1 thread per 8 pixel column in a block. The implemented algorithms in CUDA employed unified memory to facilitate the displaying of the HOG features, and storing the L2 norm coefficients for each 2x2 feature block.
 
 
+### Improvements
+Some improvements that could be considered for this project is to incorporate shared memory usage since using shared memory is noted to be faster than global memory due to being on-chip. It was not used in this case due to difficulties in proper implementation and cross-thread block dependencies. It would be particularly useful in the orientation binning of each 8x8 pixel block. 
 
+Furthermore, implementing a reduction sum in the computation of the L2 norm should also be considered to improve complexity, as it was implemented in the normalization of the fastHOG algorithm. Due to the abovementioned issues with cross-thread block dependencies, difficulties were observed when trying to implement shared memory to compute with a reduction sum. Currently, the L2 norm coefficients are computed on each 36th thread in a sequential manner, increasing idle time for other threads and being generally inefficient.
