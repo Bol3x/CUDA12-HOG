@@ -35,9 +35,13 @@ The following algorithms were parallelized using CUDA:
 
 
 ## c.) Detailed Analysis and Discussion of Results
-   it is important to note that the testing of the HOG algorithms that was implemented both in C++ and CUDA were both ran on the same device in which the specs was provided.The algorithm was ran 100 times and the outputs of both the serial and parallel implementation  were timed using CUDA’s cudaEvent_t classes. To determine the comparison between the two, the speedup formula was used which is calculated by taking the old execution time and dividing it to the new execution time.
+ It is important to note that the testing of the HOG algorithms that was implemented both in C++ and CUDA were both run on the same device with the provided specs in table 1. The algorithm was run 100 times with the execution of both the serial and parallel implementation timed using CUDA’s cudaEvent_t class. To compare between the two, the speedup was calculated by taking the sequential (C++) execution time over the parallelized (CUDA) execution time.
 
-   In table 1, the dimensions had a ratio of 2 x 1 wherein the width is double the height. 
+ 	In table 2, the dimensions had a ratio of 2 x 1 wherein the width is double the height. As the dimensions were increased, the speedup also increased, with the speedup at a limit of approximately 15 times over the sequential execution. In table 3, the image utilizes a dimension of square where the width and the height is of equal value. The speedup also increased but it only reached up to 14 times over the sequential execution.
+
+	The implemented algorithms in CUDA distributed 1 thread per 1-2 pixels whereas fastHOG [2] used 1 thread per 8 pixel column in a block . The implemented algorithms in CUDA employed unified memory to facilitate the displaying of the HOG features.
+
+Some improvements that could be considered in this project is to incorporate shared memory usage since using shared memory is noted to be faster than global memory due to being on-chip. Specifically, employing it in the orientation binning. Furthermore, implementing a reduction sum in the computation of the L2 norm should also be considered to make execution faster, as it was noted that it was implemented in the normalization of the fastHOG[2] algorithm. 
 
 
 
