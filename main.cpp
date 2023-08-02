@@ -14,13 +14,6 @@ using namespace cv;
 using namespace std;
 
 
-
-    // Show the input image with the HOG visualization overlay
-    cv::imshow("HOG Visualization", hog_visualization);
-    cv::waitKey(0);
-}
-
->>>>>>> 4475bfa20932878c09d9c7086711c6a1fd1606ca
 void get_HOG_features(double* HOG_features, Mat img, double*** HOGBin, int rows, int cols) {
 
 	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
