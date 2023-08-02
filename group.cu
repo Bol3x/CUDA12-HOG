@@ -94,7 +94,7 @@ int main() {
 		time_elapsed_bin += ((double)(end - start));
 	}
 
-	time_elapsed_bin = time_elapsed_bin * 1e6 / CLOCKS_PER_SEC / runs;
+	time_elapsed_bin = (time_elapsed_bin * 1e6 / CLOCKS_PER_SEC) / runs;
 
 	/************************************************************
 	*					5.  Normalization
@@ -128,7 +128,7 @@ int main() {
 			time_elapsed_norm += ((double)(end - start));
 		}
 
-	time_elapsed_norm = time_elapsed_norm * 1e6 / CLOCKS_PER_SEC / runs;
+	time_elapsed_norm = (time_elapsed_norm * 1e6 / CLOCKS_PER_SEC) / runs;
 
 
 	/************************************************************
@@ -138,11 +138,15 @@ int main() {
 	cout << "Bin: Average time elapsed (in us): " << time_elapsed_bin << endl;
 	cout << "Norm: Average time elapsed (in us): " << time_elapsed_norm << endl;
 
-	cout << "HOG norm" << endl;
-	for (int i = 36; i < 36 + 36; i++) {
+	
+
+	cout << "Sample HOG norm (First 36 elements)" << endl;
+	for (int i = 0; i < 36; i++) {
 		cout << normHOG[i] << "\t";
 	}
 	cout << endl;
+
+	cout << "Total Average Time (in us): " << time_elapsed_bin + time_elapsed_norm << endl;
 
 	cudaFree(norm_coeff);
 	cudaFree(normHOG);

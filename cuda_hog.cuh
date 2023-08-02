@@ -23,11 +23,7 @@ void compute_bins(double* hog_out, unsigned char *input, int rows, int cols) {
 	const int stride_i = blockDim.x * gridDim.x;
 	const int stride_j = blockDim.y * gridDim.y;
 
-	int bin_key;
-	double bin_value_lo, bin_value_hi;
 	const double bins[10] = { 0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0 };
-	double x, y;
-	double mag, dir;
 
 	//compute x gradients
 	for (int i = t_i; i < rows; i += stride_i) {
@@ -35,26 +31,26 @@ void compute_bins(double* hog_out, unsigned char *input, int rows, int cols) {
 		{
 			//calculate x and y gradients
 			//do not include first and last rows (borders)
-			x = (i == 0 || i == rows - 1) ?
+			double x = (i == 0 || i == rows - 1) ?
 				0 : input[((i + 1) * cols) + j] - input[((i - 1) * cols) + j];
 
 			//do not include first and last cols (borders)
-			y = (j == 0 || j == cols - 1) ?
+			double y = (j == 0 || j == cols - 1) ?
 				0 : input[(i * cols) + j + 1] - input[(i * cols) + j - 1];
 
 
-			mag = sqrt(x * x + y * y);
-			dir = (atan2(y, x) * 180 / M_PI);
+			double mag = sqrt(x * x + y * y);
+			double dir = (atan2(y, x) * 180 / M_PI);
 			if (dir < 0) dir += 180;
 			if (dir == 180) dir = 0;
 
 			//determine which bins the magnitude will be added to
-			bin_key = dir / 20;
+			int bin_key = dir / 20;
 			bin_key %= 9;
 
 			//equally divide contributions to different angle bins
-			bin_value_lo = ((bins[bin_key + 1] - dir) / 20.0) * mag;
-			bin_value_hi = fabs(bin_value_lo - mag);
+			double bin_value_lo = ((bins[bin_key + 1] - dir) / 20.0) * mag;
+			double bin_value_hi = fabs(bin_value_lo - mag);
 
 			//add value to bin
 			int out_idx = (i / 8 * (cols / 8) + j / 8) * 9;	//output index (flattened index)
@@ -105,6 +101,10 @@ void L2norm(double* input, double *HOGBin, double* norms, int rows, int cols, in
 		if (i % 36 == 0) {
 			double sum = 0;
 
+			//could be better... maybe reduction sum without using shared mem (global loc)?
+			//problem with shared mem: 
+			//only shared within thread blocks; what if 36 elements cross between blocks?
+			//then next block will read wrong shared memory location
 			for (int j = 0; j < 36; j++) {
 				sum += (input[i + j] * input[i + j]);
 			}
